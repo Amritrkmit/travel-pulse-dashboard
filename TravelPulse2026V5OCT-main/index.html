@@ -144,33 +144,33 @@
 
       <!-- Word clouds row -->
 
-      <section class="grid two" style="margin-top:10px;">
+      <section id="overviewWordCloudRow" class="grid two" style="margin-top:10px;">
 
-        <article class="card" style="height:420px;">
+        <article class="card" style="height:380px;">
 
           <div class="card-head">
 
-            <div><h2 id="assocWordCloudTitle">Key Travel Associations — All Markets</h2></div>
+            <div><h2 id="socialThemeWordCloudTitle">Key Travel Associations — All Markets</h2></div>
 
-            <span class="mini-note">Word size = frequency · Click word to filter</span>
+            <span class="mini-note">Wave 4 · Word size = mentions · Hover for count</span>
 
           </div>
 
-          <div id="assocWordCloud" class="chart" style="min-height:340px"></div>
+          <div id="socialThemeWordCloud" class="chart" style="height:340px;min-height:0"></div>
 
         </article>
 
-        <article class="card" style="height:420px;">
+        <article class="card" style="height:380px;">
 
           <div class="card-head">
 
-            <div><h2 id="destWordCloudTitle">Key Destinations — All Markets</h2></div>
+            <div><h2 id="destWordCloudTitle">Travel Planning — All Markets</h2></div>
 
-            <span class="mini-note">Word size = frequency · Click word to filter</span>
+            <span class="mini-note">Q2 · Travel planning stage · Click a row to filter</span>
 
           </div>
 
-          <div id="destWordCloud" class="chart" style="min-height:340px"></div>
+          <div id="q2PlanningStageChart" class="chart" style="height:340px;min-height:0"></div>
 
         </article>
 
@@ -308,7 +308,7 @@
 
               <article class="card">
 
-                <div class="card-head"><div><h2>Booking Lead Time (Q6)</h2></div></div>
+                <div class="card-head"><div><h2>Booking Lead Time</h2></div></div>
 
                 <div id="planBookingLeadTimePie" class="chart donut-wrap" style="min-height:360px"></div>
 
@@ -316,7 +316,7 @@
 
               <article class="card">
 
-                <div class="card-head"><div><h2>Planned Travel Period (Q6a)</h2></div></div>
+                <div class="card-head"><div><h2>Planned Travel Period</h2></div></div>
 
                 <div id="planTravelPeriodPie" class="chart donut-wrap" style="min-height:360px"></div>
 
@@ -620,12 +620,6 @@
 
           <div id="airlineStrategyChart" class="chart" style="min-height:340px"></div>
 
-          <div class="airline-callout-box">
-
-            <span>Show top 3 airlines associated whenever someone clicks on a strategy</span>
-
-          </div>
-
           <div id="q18DrillPanel" class="q18-drill-panel" hidden>
 
             <div class="q18-drill-head">
@@ -652,7 +646,7 @@
 
           <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
 
-            <div><h2 style="color:#fff;font-size:15px;margin:0;">Airline Loyalty Programme Importance</h2></div>
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Airline Loyalty Programme</h2></div>
 
             <span class="q9b-tab-badge" style="background:#ff7f2a;color:#fff;">Q16a</span>
 
@@ -830,11 +824,7 @@
 
           <div id="hotelStrategyChart" class="chart" style="min-height:300px"></div>
 
-          <div class="airline-callout-box" style="background:#3b82f6;">
-
-            <span>Show top 3 hotels associated whenever someone clicks on a strategy</span>
-
-          </div>
+          
 
           <div id="q24DrillPanel" class="q18-drill-panel" hidden>
 
@@ -888,7 +878,7 @@
 
           <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
 
-            <div><h2 style="color:#fff;font-size:15px;margin:0;">Hotel Loyalty Programme Importance</h2></div>
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Accommodation Loyalty Programme</h2></div>
 
             <span class="q9b-tab-badge" style="background:#ff7f2a;color:#fff;">Q22a</span>
 

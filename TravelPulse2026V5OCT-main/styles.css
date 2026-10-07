@@ -764,6 +764,22 @@ body.destination-active .chart-type-picker select{
   max-height:620px;overflow-y:auto;overflow-x:hidden;
   border:1px solid #ece6f5;background:#fff;padding:0 2px 2px
 }
+#finalizedDestChart.chart{
+  height:500px!important;min-height:0!important;max-height:500px!important;flex:1 1 auto;
+  overflow-x:hidden!important;overflow-y:auto!important;scrollbar-gutter:stable;
+}
+#finalizedDestChart .gridline line{display:none}
+#finalizedDestChart::-webkit-scrollbar{width:8px}
+#finalizedDestChart::-webkit-scrollbar-track{background:#e8eef6}
+#finalizedDestChart::-webkit-scrollbar-thumb{background:#0055A5;border-radius:4px}
+#planBudgetReasonsChart.chart{
+  min-height:0!important;overflow-x:hidden!important;overflow-y:auto!important;scrollbar-gutter:stable;
+}
+#planBudgetReasonsChart::-webkit-scrollbar{width:8px}
+#planBudgetReasonsChart::-webkit-scrollbar-track{background:#e8eef6}
+#planBudgetReasonsChart::-webkit-scrollbar-thumb{background:#0055A5;border-radius:4px}
+#stageBook > .grid.two:first-child{grid-auto-rows:1fr}
+#stageBook > .grid.two:first-child > .card{height:auto}
 .chart.long-chart svg{display:block;max-width:100%;height:auto}
 .sentiment-pulse-chart{overflow:hidden!important}
 .donut-chart{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden!important;padding:0 4px 4px}
@@ -812,6 +828,7 @@ body.segments-active #filtersBar{display:none!important}
 .segment-outcome-grid{margin-left:-10px;margin-right:-10px}
 .segment-profile-card,.segment-spend-card{min-width:0;overflow:hidden;border:1px solid #e7e0f1;border-radius:5px;background:#fff;box-shadow:0 5px 18px rgba(35,11,84,.05)}
 .segment-profile-card--bars{padding:14px;display:flex;flex-direction:column}
+.segment-question-section[aria-label^="Q21 "] .segment-profile-card--bars{max-height:360px;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}
 .segment-simple-card-head{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 8px;margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid #e9e3ef}
 .segment-simple-card-head span{grid-column:1/-1;color:#746a7b;font:800 8px Manrope;text-transform:uppercase}
 .segment-simple-card-head h4{margin:0;color:#530095;font:800 13px Manrope;overflow-wrap:anywhere}
@@ -840,11 +857,11 @@ body.segments-active #filtersBar{display:none!important}
 }
 .segment-pie-empty{display:flex;align-items:center;justify-content:center;min-height:220px;color:#7d728d;font-weight:800}
 .booking-sequence-cards{
-  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
-  padding:2px;align-items:stretch
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px;
+  width:100%;padding:2px;align-items:stretch
 }
 .booking-sequence-card{
-  display:grid;grid-template-columns:34px 34px 1fr;align-items:center;gap:10px;
+  display:grid;grid-template-columns:34px 34px minmax(0,1fr);align-items:center;gap:10px;
   min-height:70px;border:1px solid #ece6f5;border-left:5px solid var(--seq-color);
   border-radius:8px;background:#fff;box-shadow:0 8px 18px rgba(35,11,84,.06);
   padding:10px 12px
@@ -855,7 +872,7 @@ body.segments-active #filtersBar{display:none!important}
 }
 .booking-sequence-icon{font-size:22px;line-height:1;text-align:center}
 .booking-sequence-copy strong{
-  display:block;color:#230B54;font:900 11px Manrope;text-transform:uppercase;letter-spacing:.03em
+  display:block;color:#230B54;font:900 11px Manrope;text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere
 }
 .booking-sequence-copy span{display:block;color:#756985;font:800 10px "DM Sans";margin-top:3px}
 @media (max-width:720px){.booking-sequence-cards{grid-template-columns:1fr}}
@@ -1763,6 +1780,7 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  overflow: visible;
   background: transparent;
   box-shadow: none;
   border: 0;
@@ -1894,13 +1912,13 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
 
 /* Active Stage Highlight — keeps each card's own colour, just bolder + pop-out */
 .tab-panel[data-panel="behaviour"] .journey-step.active {
-  transform: translateX(-8px) scale(1.04) !important;
+  transform: scale(1.02) !important;
   z-index: 10;
   filter: none !important;
   opacity: 1;
 }
 .tab-panel[data-panel="behaviour"] .journey-step.active:hover {
-  transform: translateX(-8px) scale(1.04) !important;
+  transform: scale(1.02) !important;
 }
 .tab-panel[data-panel="behaviour"] .journey-step:not(.active) {
   filter: blur(0.2px) brightness(0.82) saturate(0.75);
@@ -1922,8 +1940,8 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
 .tab-panel[data-panel="behaviour"] .journey-step.gray.active {
   box-shadow:
     0 0 0 3px #fff,
-    0 0 0 6px #452080,
-    0 16px 36px rgba(69, 32, 128, 0.50),
+    0 0 0 6px #F28C28,
+    0 16px 36px rgba(242, 140, 40, 0.50),
     0 6px 14px rgba(0, 0, 0, 0.20) !important;
 }
 .tab-panel[data-panel="behaviour"] .journey-step.blue.active {
@@ -2019,6 +2037,30 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
     min-height: 380px !important;
   }
 }
+
+#overviewWordCloudRow{grid-template-columns:repeat(2,minmax(0,1fr))}
+#overviewWordCloudRow>.card{height:380px!important;min-height:0!important;padding:6px!important}
+#overviewWordCloudRow>.card>.chart{
+  height:340px!important;
+  min-height:0!important;
+  max-height:340px!important;
+  flex:0 0 340px!important;
+  overflow:hidden!important;
+}
+.q2-stage-table{display:grid;gap:6px;padding:10px 12px}
+.q2-stage-table-head,.q2-stage-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,1.5fr) 46px;align-items:center;gap:10px}
+.q2-stage-table-head{padding:0 7px 6px;border-bottom:1px solid #e8e1ef;color:#756985;font:800 9px Manrope;text-transform:uppercase}
+.q2-stage-table-head span:nth-child(2){text-align:right}
+.q2-stage-table-head span:last-child{text-align:right}
+.q2-stage-row{width:100%;min-width:0;min-height:48px;padding:5px 7px;border:0;border-radius:4px;background:#fff;text-align:left;cursor:pointer}
+.q2-stage-row:hover,.q2-stage-row.is-selected{background:#f4f0f8}
+.q2-stage-copy{display:grid;gap:3px;min-width:0}
+.q2-stage-copy strong{overflow:hidden;color:#342a3b;font:700 11px "DM Sans";text-overflow:ellipsis;white-space:nowrap}
+.q2-stage-copy small{color:#8a8194;font:600 9px "DM Sans"}
+.q2-stage-track{height:18px;overflow:hidden;border-radius:3px;background:#eee8f5}
+.q2-stage-fill{display:block;height:100%;min-width:2px;border-radius:inherit}
+.q2-stage-share{color:#342a3b;font:800 11px "DM Sans";text-align:right}
+@media(max-width:900px){#overviewWordCloudRow{grid-template-columns:minmax(0,1fr)}}
 
 /* ── BOOK STAGE: Booking Sequence Chevron ────────────────────── */
 .booking-chevron-wrap {
@@ -3313,6 +3355,50 @@ body.dashboard-is-loading .tabs {
 @media (max-width: 900px) {
   .hotel-slide1-grid { grid-template-columns: 1fr; }
 }
+.grid.hotel-order-three{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px;
+  align-items:stretch;
+  margin:0 0 20px;
+}
+.grid.hotel-order-two{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  align-items:stretch;
+  margin:0 0 20px;
+}
+.hotel-order-three>.card,
+.hotel-order-two>.card{
+  width:100%;
+  height:380px!important;
+  min-width:0;
+  min-height:0;
+}
+.hotel-question-slot{display:flex;min-width:0;min-height:0}
+.hotel-question-slot>.hotel-primary-question-card{
+  width:100%;
+  height:100%!important;
+  min-width:0;
+  min-height:0!important;
+}
+.hotel-primary-question-card>.chart{
+  min-height:0!important;
+  flex:1 1 auto;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+.hotel-primary-question-card>.chart.long-chart{max-height:300px;scrollbar-gutter:stable}
+#hotelQ22Slot>.hotel-primary-question-card>.chart.pp-host{
+  max-height:300px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-gutter:stable;
+}
+@media(max-width:1100px){
+  .grid.hotel-order-three,.grid.hotel-order-two{grid-template-columns:minmax(0,1fr)}
+  .hotel-order-three>.card,.hotel-order-two>.card{height:auto!important;min-height:320px}
+  .hotel-question-slot>.hotel-primary-question-card{height:auto!important;min-height:320px!important}
+}
 .hotel-slide-card {
   padding: 0 !important;
   background: #ffffff;
@@ -3323,6 +3409,16 @@ body.dashboard-is-loading .tabs {
 }
 .hotel-slide-card .chart {
   padding: 10px 14px 14px;
+}
+.hotel-slide-card #hotelBrandChangeChart {
+  max-height: 320px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.hotel-slide-card #hotelBrandChangeChart.pp-host {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -3807,6 +3903,56 @@ article.card.airline-slide-card,
 {
   height:450px;
 }
+body.airline-active .airline-order-row{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:8px;
+}
+body.airline-active .airline-order-row>.card{
+  height:380px!important;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+body.airline-active #airlineLoyaltyRow>.card{height:340px!important}
+body.airline-active #carrierChangeChart.pp-host,
+body.airline-active #airlineConsiderChart.pp-host,
+body.airline-active #cabinChart.pp-host{
+  max-height:300px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-gutter:stable;
+  padding-right:4px;
+}
+body.airline-active #airlineStrategyChart.chart{
+  min-height:0!important;
+  max-height:320px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+}
+body.airline-active .airline-order-row>.card:has(>#airlineStrategyChart){overflow-y:auto}
+body.airline-active #airlineLoyaltyChart,
+body.airline-active #airlineLoyaltyFeatChart{
+  min-height:0!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+}
+body.airline-active #cabinChart .pp-wrap{
+  height:100%;
+  min-height:100%;
+  align-content:center;
+}
+body.airline-active #cabinChart .pp-chart{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:900px){
+  body.airline-active .airline-order-row{grid-template-columns:minmax(0,1fr)}
+  body.airline-active .airline-order-row>.card{height:auto!important}
+  body.airline-active #airlineLoyaltyRow>.card{height:auto!important}
+  body.airline-active #cabinChart .pp-wrap{flex-direction:column;flex-wrap:nowrap}
+}
 
 /* ============================================================
    PREMIUM CHARTS (chart-premium.js) — Escalent palette
@@ -3832,7 +3978,7 @@ article.card.airline-slide-card,
 .pp-center-s{font:700 8px Manrope,sans-serif;fill:#6b6178;text-transform:uppercase;letter-spacing:.04em}
 .pp-legend{flex:1 1 170px;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:1px}
 .pp-row{display:grid;grid-template-columns:10px minmax(0,max-content) auto;justify-content:start;align-items:center;gap:7px 10px;padding:3px 6px;border-radius:6px;
-  font:700 10.5px/1.25 Manrope,"DM Sans",sans-serif;color:#3F3F3F;transition:background .12s,opacity .12s}
+font-weight: 600;font-size: 12px; color:#3F3F3F;transition:background .12s,opacity .12s}
 .pp-row.is-click{cursor:pointer}
 .pp-row.is-click:hover,.pp-row.is-hov{background:#f4effa}
 .pp-row.is-sel{background:#ece2f8;box-shadow:inset 3px 0 0 #530095}
@@ -3904,7 +4050,7 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .pp-wrap{gap:6px 10px}
 @media (max-width:520px){.pp-legend{width:100%!important;max-width:none!important;grid-template-columns:10px minmax(0,1fr) auto}}
 .pp-legend{margin-left:14px;column-gap:10px}
-.pp-row{column-gap:10px}
+.pp-row{column-gap:10px;     border: 1px solid #8a7e9833;}
 @media (max-width:520px){.pp-legend{margin-left:0}}
 
 /* v6: pie + legend centred as one group with equal left/right padding */
@@ -3922,8 +4068,20 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .seg-card-viz .segment-profile-body{padding:8px 10px}
 .seg-viz .pp-wrap,.seg-stack{width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0}
 .seg-viz .pp-wrap{flex-direction:row;flex-wrap:wrap;justify-content:center!important;padding:0!important}
-.seg-legend{width:100%!important;max-width:100%!important;grid-template-columns:10px minmax(0,1fr) auto;margin-left:0!important}
-.pp-lab{font:700 10px Manrope,"DM Sans",sans-serif;fill:#3F3F3F}
+.seg-legend{width:100%!important;max-width:100%!important;grid-template-columns:10px minmax(0,1fr) auto;margin-left:0!important;padding-top: 20px;}
+.seg-ribbon{width:100%;min-width:0}
+.seg-ribbon-layout{display:grid;grid-template-columns:minmax(0,1fr) 100px;align-items:stretch;width:100%}
+.seg-ribbon-table{display:grid;grid-template-rows:22px repeat(var(--ribbon-rows,7),30px);min-width:0}
+.seg-ribbon-head,.seg-ribbon-row{display:grid;grid-template-columns:minmax(0,1fr) 43px;align-items:center;gap:4px;min-width:0}
+.seg-ribbon-head{color:#746a7b;font:800 8px Manrope;text-transform:uppercase}
+.seg-ribbon-head span:not(:first-child){text-align:right}
+.seg-ribbon-row{border-top:1px solid #eee9f2;color:#453c4a;font-weight: 600;font-size: 12px;cursor:default}
+.seg-ribbon-row:hover{background:#f7f4fa}
+.seg-ribbon-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg-ribbon-pct{color:#0055A5}
+.seg-ribbon-svg{display:block;width:100px;overflow:visible}
+.seg-ribbon-flow,.seg-ribbon-stack{pointer-events:all}
+.pp-lab{font-size: 12px;font-weight: 600;fill:#3F3F3F}
 .pp-bub{font:800 10px Manrope,"DM Sans",sans-serif;fill:#fff;pointer-events:none}
 .pp-bub tspan:last-child{font-weight:900}
 .seg-viz .pp-bar.is-click{cursor:default}
@@ -3934,6 +4092,7 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .pp-pref.is-sel{box-shadow:inset 3px 0 0 #104c9c!important}
 :root{--font-body:"Yellix","Helvetica Neue",Arial,sans-serif;--font-heading:"Yellix","Helvetica Neue",Arial,sans-serif}
 html,body,body *,button,input,select,textarea,svg text,svg tspan,.tooltip,.tooltip *{font-family:"Yellix","Helvetica Neue",Arial,sans-serif!important}
+#socialThemeWordCloud .word-cloud-tag text{font-family:"Oswald","Bebas Neue","Arial Narrow",sans-serif!important}
 .pp-center-s{letter-spacing:0!important;font-weight:600!important}
 
 /* v9: flat #0055A5 bars, 1px radius */

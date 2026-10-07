@@ -132,7 +132,7 @@ let FILTER_CONFIG=[
   {value:"Market",label:"Source Market",options:()=>MARKETS,default:[]},
   {value:"Age Group",label:"Age",options:()=>["18-24","25-34","35-44","45-54","55-65","65+"],default:[]},
   {value:"Income",label:"Income",options:()=>["Low","Medium","High"],default:[]},
-  {value:"Class",label:"Segment",options:()=>{const key=currentTab==="hotel"?"accommodation":"cabinClass";return [...new Set((DATA?.records||[]).map(r=>clean(r[key])).filter(Boolean))].sort();},default:[]},
+  {value:"Segments",label:"Segments",options:()=>[],default:[]},
   {value:"Trip Type",label:"Traveler Type",options:()=>TRIP_TYPES,default:[]},
 ];
 /* Marital Status, Children, Companion are now displayed as charts, not filters */
@@ -1616,9 +1616,9 @@ function renderAirlineInsight(){
   d3.select("#airlineInsight").html(`<b>${topCarrier.label}</b> leads carrier preference (${fmt(topCarrier.value)}) for ${selectionLabel(activeSelections)}. Airline NPS is ${word} at ${d3.format(".0f")(nps)}, and <b>${topFactor.label}</b> is the top factor when choosing an airline.`);
 }
 function renderHotelInsight(){
-  const topStay=topN(q("accommodation"),1)[0];
+  const topStay=topN(q("accommodation"),1)[0]||{label:"—",value:0};
   const nps=byLabel("hotelNPS","NPS Score");
-  const topFactor=topN(q("hotelConsiderations"),1)[0];
+  const topFactor=topN(q("hotelConsiderations"),1)[0]||{label:"—",value:0};
   const word=nps>=50?"strong":nps>=0?"moderate":"weak";
   d3.select("#hotelInsight").html(`<b>${topStay.label}</b> is the preferred stay type (${fmt(topStay.value)}) for ${selectionLabel(activeSelections)}. Hotel NPS is ${word} at ${d3.format(".0f")(nps)}, and <b>${topFactor.label}</b> drives hotel choice most.`);
 }
@@ -2094,89 +2094,27 @@ function countField(rows,field){
     .map(([label,count])=>({label,count,value:total?count/total:0,total}));
 }
 
-function renderSegmentPie(sel,data,opt={}){
-  const el=document.querySelector(sel);
-  if(!el) return;
-  const rows=[...(data||[])].filter(d=>(+d.count||0)>0 && Number.isFinite(+d.value));
-  const root=d3.select(sel);
-  root.selectAll("*").remove();
-  el.classList.add("behaviour-pie-chart");
-  if(!rows.length){
-    root.append("div").attr("class","segment-pie-empty").text("No data available");
-    return;
-  }
-  const w=Math.max(300,el.clientWidth||420);
-  const h=opt.height||320;
-  const wide=w>=440;
-  const fitLegend=Boolean(opt.fitLegend)&&!wide;
-  const r=wide?Math.min(112,h*.35,w*.22):fitLegend?Math.min(78,w*.28,h*.22):Math.min(100,w*.30,h*.24);
-  const cx=wide?Math.max(r+28,w*.28):w/2;
-  const cy=wide?h/2-10:fitLegend?r+12:116;
-  const legendX=wide?Math.min(w*.56,w-220):18;
-  const legendY=wide?Math.max(36,cy-rows.length*13):fitLegend?cy+r+24:cy+r+26;
-  const valueRightPadding=Number.isFinite(+opt.valueRightPadding)?+opt.valueRightPadding:null;
-  const valueX=wide
-    ?valueRightPadding===null?Math.max(235,Math.min(315,w-legendX-14)):Math.max(120,Math.min(315,w-legendX-valueRightPadding))
-    :w-(valueRightPadding??58);
-  const labelMaxChars=wide?Math.max(16,Math.min(26,Math.floor((valueX-34)/7.4))):24;
-  const colors=opt.colors||["#530095","#00B5AC","#FF5635","#EEFF3B","#230B54","#9A1B15","#7b6aa4"];
-  const selected=clean(opt.selected||"");
-  const svg=root.append("svg")
-    .attr("width",w)
-    .attr("height",h)
-    .attr("viewBox",`0 0 ${w} ${h}`)
-    .style("display","block");
-  const pie=d3.pie().sort(null).value(d=>Math.max(0,+d.count));
-  const arc=d3.arc().innerRadius(0).outerRadius(r);
-  const labelArc=d3.arc().innerRadius(r*.62).outerRadius(r*.62);
-  const g=svg.append("g").attr("transform",`translate(${cx},${cy})`);
-  const slices=g.selectAll("path").data(pie(rows)).join("path")
-    .attr("d",arc)
-    .attr("fill",(d,i)=>colors[i%colors.length])
-    .attr("stroke","#fff")
-    .attr("stroke-width",d=>selected && clean(d.data.label)===selected?4:2)
-    .attr("opacity",d=>selected && clean(d.data.label)!==selected?.trim()?0.38:1)
-    .style("cursor",opt.onClick?"pointer":"default")
-    .on("click",(e,d)=>{ if(opt.onClick){ e.stopPropagation(); opt.onClick(d.data); }})
-    .on("mousemove",(e,d)=>showTip(e,{label:d.data.label,value:`${(d.data.count||0).toLocaleString()} respondents · ${fmt(d.data.value)}`},true))
-    .on("mouseleave",hideTip);
-  slices.append("title").text(d=>`${d.data.label}: ${(d.data.count||0).toLocaleString()} (${fmt(d.data.value)})`);
-  g.selectAll("text.slice-label").data(pie(rows).filter(d=>d.data.value>=0.06)).join("text")
-    .attr("class","slice-label")
-    .attr("transform",d=>`translate(${labelArc.centroid(d)})`)
-    .attr("text-anchor","middle")
-    .attr("dy",".35em")
-    .attr("font-size",10)
-    .attr("font-weight",900)
-    .attr("fill","#fff")
-    .text(d=>fmt(d.data.value));
-  const legend=svg.append("g").attr("transform",`translate(${legendX},${legendY})`);
-  const item=legend.selectAll("g").data(rows).join("g")
-    .attr("transform",(d,i)=>`translate(0,${i*24})`)
-    .style("cursor",opt.onClick?"pointer":"default")
-    .on("click",(e,d)=>{ if(opt.onClick){ e.stopPropagation(); opt.onClick(d); }});
-  item.append("rect")
-    .attr("width",12).attr("height",12).attr("rx",3)
-    .attr("fill",(d,i)=>colors[i%colors.length])
-    .attr("opacity",d=>selected && clean(d.label)!==selected?0.38:1);
-  item.append("text")
-    .attr("x",18).attr("y",10)
-    .attr("font-size",9.5).attr("font-weight",800).attr("fill","#4f4167")
-    .text(d=>{
-      const label=chartDisplayLabel(d);
-      return label.length>labelMaxChars?label.slice(0,labelMaxChars-1)+"…":label;
-    })
-    .append("title").text(d=>chartDisplayLabel(d));
-  item.append("text")
-    .attr("x",valueX).attr("y",10)
-    .attr("text-anchor","end").attr("font-size",10).attr("font-weight",900).attr("fill","#230B54")
-    .text(d=>`${(d.count||0).toLocaleString()} · ${fmt(d.value)}`);
-  const total=rows.reduce((sum,d)=>sum+(+d.count||0),0);
-  svg.append("text")
-    .attr("x",cx).attr("y",fitLegend?h-4:cy+r+24)
-    .attr("text-anchor","middle")
-    .attr("font-size",10).attr("font-weight",900).attr("fill","#230B54")
-    .text(`${total.toLocaleString()} total`);
+function destinationAnswers(row){
+  const explicitQ3=[row.Q3_1,row.Q3_2,row.Q3_3].filter(value=>String(value||"").trim());
+  const destinations=explicitQ3.length?explicitQ3:(Array.isArray(row.Q3)?row.Q3.slice(0,3):[]);
+  return destinations.map(value=>{
+    const raw=String(value||"").trim();
+    if(!raw||raw==="Undecided")return "";
+    const normalized=normalizeDest(raw);
+    return normalized&&normalized!=="Undecided"?normalized:"";
+  }).filter(Boolean);
+}
+
+function destinationResponseDistribution(rows){
+  const counts=new Map();
+  let total=0;
+  (rows||[]).forEach(row=>destinationAnswers(row).forEach(label=>{
+    counts.set(label,(counts.get(label)||0)+1);
+    total++;
+  }));
+  return [...counts.entries()]
+    .sort((a,b)=>b[1]-a[1])
+    .map(([label,count])=>({label,count,total,value:total?count/total:0}));
 }
 
 function renderSegments(){
@@ -2254,6 +2192,11 @@ function renderSegments(){
     `;
   }).join("");
   const answersForRow=(row,question)=>{
+    if(question.key==="Q3")return destinationAnswers(row);
+    if(question.key==="Q5"){
+      const companion=clean(row.travelCompanions||row.Q5);
+      return companion?[companion]:[];
+    }
     for(const field of question.fields){
       const raw=row[field];
       const answers=(Array.isArray(raw)?raw:[raw]).map(clean).filter(Boolean);
@@ -2262,6 +2205,7 @@ function renderSegments(){
     return [];
   };
   const spendCharts=[];
+  const segmentChartJobs=[];
 
   questionStack.innerHTML=questions.map(question=>{
     const cards=cohorts.map((label,index)=>{
@@ -2270,12 +2214,31 @@ function renderSegments(){
       const questionBase=answeredRows.length!==cohortRows.length
         ?`<p class="segment-question-respondents">${answeredRows.length.toLocaleString()} respondents answered</p>`
         :"";
-      const counts=new Map();
-      answeredRows.forEach(answers=>answers.forEach(value=>counts.set(value,(counts.get(value)||0)+1)));
-      const responses=[...counts.entries()]
-        .map(([answer,count])=>({answer,count,value:answeredRows.length?count/answeredRows.length:0}))
-        .sort((a,b)=>b.count-a.count||a.answer.localeCompare(b.answer))
-        .slice(0,7);
+      let rankedResponses;
+      if(question.key==="Q3"){
+        rankedResponses=destinationResponseDistribution(cohortRows)
+          .map(item=>({answer:item.label,count:item.count,value:item.value}));
+      }else{
+        const counts=new Map();
+        answeredRows.forEach(answers=>answers.forEach(value=>{
+          const answer=/^others?\s*\(please+\s+specify\)$/i.test(value.trim())?"Others":value;
+          counts.set(answer,(counts.get(answer)||0)+1);
+        }));
+        rankedResponses=[...counts.entries()]
+          .map(([answer,count])=>({answer,count,value:answeredRows.length?count/answeredRows.length:0}))
+          .sort((a,b)=>b.count-a.count||a.answer.localeCompare(b.answer));
+      }
+      const responses=question.key==="Q5"||question.key==="Q21"?rankedResponses:rankedResponses.slice(0,7);
+      const othersResponse=rankedResponses.find(item=>item.answer==="Others");
+      if(othersResponse&&!responses.includes(othersResponse))responses[responses.length-1]=othersResponse;
+      const chartId=`segment-question-chart-${activeSegmentView}-${question.key}-${index}`;
+      if(question.key==="Q3"||question.key==="Q5"){
+        segmentChartJobs.push({
+          chartId,
+          type:question.key,
+          data:responses.map(item=>({label:item.answer,count:item.count,value:item.value}))
+        });
+      }
       const responseRows=responses.map(item=>`
         <div class="segment-factor-row" data-label="${escapeHtml(item.answer)}" data-count="${item.count}" data-base="${answeredRows.length}">
           <span class="segment-factor-label" title="${escapeHtml(item.answer)}">${escapeHtml(item.answer)}</span>
@@ -2287,7 +2250,9 @@ function renderSegments(){
         <article class="segment-profile-card segment-profile-card--bars">
           <div class="segment-profile-body">
             ${questionBase}
-            <div class="segment-factor-list">${responseRows||'<div class="empty-chart">No answers for this question.</div>'}</div>
+            ${question.key==="Q3"||question.key==="Q5"
+              ?`<div id="${chartId}" class="chart segment-question-chart"></div>`
+              :`<div class="segment-factor-list">${responseRows||'<div class="empty-chart">No answers for this question.</div>'}</div>`}
           </div>
         </article>
       `;
@@ -2301,6 +2266,19 @@ function renderSegments(){
       </section>
     `;
   }).join("");
+
+  segmentChartJobs.forEach(chart=>{
+    if(chart.type==="Q3"){
+      horizontalBars(`#${chart.chartId}`,chart.data,{
+        height:Math.max(260,chart.data.length*28+58),
+        max:Math.min(1,(chart.data[0]?.value||0.5)*1.25),
+        labelWidth:135,
+        maxLabelChars:22
+      });
+    }else{
+      donut(`#${chart.chartId}`,chart.data,"Trip companion",[]);
+    }
+  });
 
   spendGrid.innerHTML=cohorts.map((label,index)=>{
     const cohortRows=rows.filter(row=>clean(row[config.dimension])===label);
@@ -2418,27 +2396,10 @@ function renderJourneyStageCharts(stageKey) {
 
     // 2. Q3 Key Destinations Considered
     // Count Q3_1/Q3_2/Q3_3 as the combined destination-response dataset.
-    const destCounts = {};
-    let destResponseTotal = 0;
     if(!rows.length){
       d3.select("#inspireDestChart").html('<div class="empty-chart">Loading destination responses…</div>');
     }
-    rows.forEach(r => {
-      const explicitQ3 = [r.Q3_1, r.Q3_2, r.Q3_3].filter(v => String(v || "").trim());
-      const dest = explicitQ3.length ? explicitQ3 : (Array.isArray(r.Q3) ? r.Q3.slice(0, 3) : []);
-      dest.forEach(d => {
-        const raw = String(d || "").trim();
-        if (!raw || raw === "Undecided") return;
-        const k = typeof normalizeDest === "function" ? normalizeDest(raw) : raw;
-        if (k && k !== "Undecided") {
-          destCounts[k] = (destCounts[k] || 0) + 1;
-          destResponseTotal += 1;
-        }
-      });
-    });
-    const destData = Object.entries(destCounts)
-      .sort((a,b) => b[1] - a[1])
-      .map(([label, count]) => ({ label, count, total: destResponseTotal, value: destResponseTotal ? count / destResponseTotal : 0 }));
+    const destData=destinationResponseDistribution(rows);
     topDest=destData[0]||null;
     d3.select("#skpiVal2, #skpiDestCount").text(topDest?topDest.label:"—");
     const oneDecimalPct = d => `${((+d || 0) * 100).toFixed(1)}%`;
@@ -2512,8 +2473,14 @@ function renderJourneyStageCharts(stageKey) {
     const tripDurationRows = rows
       .map(row => ({ Trip_Duration: clean(row.Q4) || clean(row.Q4a) }))
       .filter(row => row.Trip_Duration);
+    const tripDurationOrder=new Map(["1-2 nights","3-4 nights","5-6 nights","7-8 nights","9-10 nights","10+ nights"].map((label,index)=>[label,index]));
     const tripDurationData = countField(tripDurationRows, "Trip_Duration")
-      .map(item => ({ ...item, label: item.label.replace(/â€“|–/g, "-") }));
+      .map(item => ({
+        ...item,
+        label:item.label.replace(/â€“|–/g,"-"),
+        displayLabel:item.label.replace(/â€“|–/g,"-").replace(/(\d)-(\d)/g,"$1–$2")
+      }))
+      .sort((a,b)=>(tripDurationOrder.get(a.label)??Infinity)-(tripDurationOrder.get(b.label)??Infinity));
     behaviourDemographicPie3D("#planTripDurationPie",tripDurationData,{height:360,category:"trip duration"});
 
     const planTimingDisplayLabel = label => clean(label)
@@ -2525,7 +2492,12 @@ function renderJourneyStageCharts(stageKey) {
       .replace(/^1 year or more$/i, "1+ year")
       .replace(/^Canâ€™t say$/i, "Can't say");
     const bookingLeadTimeData = countField(rows, "Q6")
-      .map(item => ({ ...item, displayLabel: planTimingDisplayLabel(item.label) }));
+      .map(item => ({
+        ...item,
+        displayLabel:planTimingDisplayLabel(item.label).replace(/(\d)-(\d)/g,"$1–$2")
+      }));
+    const bookingLeadTimeOrder=new Map(["<1 mo","1–3 mo","3–6 mo","6–9 mo","9–12 mo","1+ year"].map((label,index)=>[label,index]));
+    bookingLeadTimeData.sort((a,b)=>(bookingLeadTimeOrder.get(a.displayLabel)??Infinity)-(bookingLeadTimeOrder.get(b.displayLabel)??Infinity));
     const travelPeriodData = countField(rows, "Q6a")
       .map(item => ({ ...item, displayLabel: planTimingDisplayLabel(item.label) }));
     behaviourDemographicPie3D("#planBookingLeadTimePie",bookingLeadTimeData,{height:360,category:"booking lead time"});
@@ -2591,11 +2563,11 @@ function renderJourneyStageCharts(stageKey) {
       if (mode === "dec") {
         if (btnDec) { btnDec.style.background = "#d9384a"; btnDec.style.color = "#fff"; }
         if (btnInc) { btnInc.style.background = "transparent"; btnInc.style.color = "#3db87e"; }
-        horizontalBars("#planBudgetReasonsChart", budgetReasonData("Q11").sort((a,b)=>b.value-a.value).slice(0, 7), { height: 320, max: 0.7, labelWidth: 255, maxLabelChars: 34, wrapYAxisLabels: true });
+        horizontalBars("#planBudgetReasonsChart", budgetReasonData("Q11").sort((a,b)=>b.value-a.value), { height: 320, max: 0.7, labelWidth: 255, maxLabelChars: 34, wrapYAxisLabels: true });
       } else if (mode === "inc") {
         if (btnDec) { btnDec.style.background = "transparent"; btnDec.style.color = "#d9384a"; }
         if (btnInc) { btnInc.style.background = "#3db87e"; btnInc.style.color = "#fff"; }
-        horizontalBars("#planBudgetReasonsChart", budgetReasonData("Q11a").sort((a,b)=>b.value-a.value).slice(0, 7), { height: 320, max: 0.7, labelWidth: 255, maxLabelChars: 34, wrapYAxisLabels: true });
+        horizontalBars("#planBudgetReasonsChart", budgetReasonData("Q11a").sort((a,b)=>b.value-a.value), { height: 320, max: 0.7, labelWidth: 255, maxLabelChars: 34, wrapYAxisLabels: true });
       } else {
         if (btnDec) { btnDec.style.background = "transparent"; btnDec.style.color = "#d9384a"; }
         if (btnInc) { btnInc.style.background = "transparent"; btnInc.style.color = "#3db87e"; }
@@ -2754,7 +2726,10 @@ function renderJourneyStageCharts(stageKey) {
       const el=document.getElementById("bookingChannelsBarChart"); if(!el)return;
       const data=q("bookingChannels");
       if(!data.length){d3.select("#bookingChannelsBarChart").html('<div class="empty-chart">No booking channel data available.</div>');return;}
-      const sorted=[...data].filter(d=>Number.isFinite(+d.value)&&d.value>0).sort((a,b)=>b.value-a.value);
+      const sorted=[...data]
+        .filter(d=>Number.isFinite(+d.value)&&d.value>0)
+        .map(d=>({...d,displayLabel:displayLabelText(d.label)}))
+        .sort((a,b)=>b.value-a.value);
       const w=Math.max(300,el.clientWidth||460);
       const h=300;
       const m={t:30,r:16,b:72,l:40};
@@ -2763,7 +2738,7 @@ function renderJourneyStageCharts(stageKey) {
       d3.select("#bookingChannelsBarChart").selectAll("*").remove();
       const svg=d3.select("#bookingChannelsBarChart").append("svg").attr("width",w).attr("height",h).attr("viewBox",`0 0 ${w} ${h}`);
       const g=svg.append("g").attr("transform",`translate(${m.l},${m.t})`);
-      const x=d3.scaleBand().domain(sorted.map(d=>d.label)).range([0,iw]).padding(0.28);
+      const x=d3.scaleBand().domain(sorted.map(d=>d.displayLabel)).range([0,iw]).padding(0.28);
       const maxVal=Math.max(0.001,d3.max(sorted,d=>+d.value)||0);
       const y=d3.scaleLinear().domain([0,maxVal*1.2]).range([ih,0]);
       // Grid lines
@@ -2771,18 +2746,19 @@ function renderJourneyStageCharts(stageKey) {
       g.select(".gridline .domain").remove();
       // Bars
       g.selectAll("rect.col-bar").data(sorted).join("rect")
-        .attr("class","col-bar").attr("x",d=>x(d.label)).attr("y",d=>y(+d.value))
+        .attr("class","col-bar").attr("x",d=>x(d.displayLabel)).attr("y",d=>y(+d.value))
         .attr("width",x.bandwidth()).attr("height",d=>ih-y(+d.value))
         .attr("fill",(d,i)=>colColors[i%colColors.length]).attr("rx",4)
         .on("mousemove",(e,d)=>showTip(e,d)).on("mouseleave",hideTip);
       // Value labels on top
       g.selectAll("text.col-val").data(sorted).join("text")
-        .attr("class","col-val").attr("x",d=>x(d.label)+x.bandwidth()/2).attr("y",d=>y(+d.value)-6)
+        .attr("class","col-val").attr("x",d=>x(d.displayLabel)+x.bandwidth()/2).attr("y",d=>y(+d.value)-6)
         .attr("text-anchor","middle").attr("font-size",10.5).attr("font-weight",800).attr("fill",(d,i)=>colColors[i%colColors.length])
         .text(d=>fmt(d.value));
       // X axis with wrapped labels
       const xAxis=g.append("g").attr("class","axis").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).tickSize(0));
       xAxis.classed("x-axis-hidden", false);
+      xAxis.selectAll("text").style("display",null);
       xAxis.select(".domain").attr("stroke","#ccc");
       xAxis.selectAll("text").attr("dy","1.2em").attr("font-size",9.5)
         .each(function(d){
@@ -3023,11 +2999,12 @@ function renderPreferenceBars(containerId,rows,fields){
   const list=root.append("div").attr("class","preference-bar-list");
   items.forEach(item=>{
     const row=list.append("div").attr("class","preference-bar-row");
-    row.append("div").attr("class","preference-bar-label").attr("title",item.label).text(item.label);
+    const label=displayLabelText(item.label);
+    row.append("div").attr("class","preference-bar-label").attr("title",label).text(label);
     const track=row.append("div")
       .attr("class","preference-bar-track")
       .attr("role","img")
-        .attr("aria-label",`${item.label}: ${fmt(item.value)}`);
+        .attr("aria-label",`${label}: ${fmt(item.value)}`);
     track.append("div").attr("class","preference-bar-fill").style("width",`${item.value*100}%`);
     row.append("div").attr("class","preference-bar-value").text(fmt(item.value));
   });
@@ -3036,28 +3013,36 @@ function renderPreferenceBars(containerId,rows,fields){
 function orderAirlineSections(){
   const tab=document.querySelector('.tab-panel[data-panel="airline"]');
   const q14Article=document.getElementById("carrierChangeChart")?.closest("article");
+  const cabinArticle=document.getElementById("cabinChart")?.closest("article");
+  const considerArticle=document.getElementById("airlineConsiderChart")?.closest("article");
   const strategyArticle=document.getElementById("airlineStrategyChart")?.closest("article");
-  const q14Section=q14Article?.closest("section");
-  if(!tab||!q14Article||!strategyArticle||!q14Section) return;
-
-  q14Article.classList.add("wide");
-  strategyArticle.classList.add("wide");
-
-  let strategySection=strategyArticle.closest("section");
-  if(strategySection===q14Section){
-    strategySection=document.createElement("section");
-    strategySection.className=q14Section.className;
-    q14Section.insertAdjacentElement("afterend",strategySection);
-    strategySection.appendChild(strategyArticle);
-  }
-
+  if(!tab||!q14Article||!cabinArticle||!considerArticle||!strategyArticle) return;
   const npsSection=document.getElementById("airlineNpsScoreCards")?.closest("section");
   const loyaltySection=document.getElementById("airlineLoyaltyChart")?.closest("section");
-  const anchor=document.getElementById("airlineConsiderChart")?.closest("section");
-  if(!anchor) return;
+  if(!npsSection||!loyaltySection) return;
+  loyaltySection.id="airlineLoyaltyRow";
+  loyaltySection.classList.add("airline-order-row");
 
-  [q14Section,npsSection,loyaltySection,strategySection].forEach(section=>{
-    if(section) tab.insertBefore(section,anchor);
+  const previousSections=new Set([q14Article,strategyArticle,considerArticle,cabinArticle].map(article=>article.closest("section")));
+  const ensureRow=id=>{
+    let row=document.getElementById(id);
+    if(!row){
+      row=document.createElement("section");
+      row.id=id;
+      row.className="grid two airline-order-row";
+    }
+    return row;
+  };
+  const preferredRow=ensureRow("airlinePreferredRow");
+  const factorsRow=ensureRow("airlineFactorsRow");
+
+  [q14Article,cabinArticle,considerArticle,strategyArticle].forEach(article=>article.classList.remove("wide"));
+  preferredRow.append(q14Article,cabinArticle);
+  factorsRow.append(considerArticle,strategyArticle);
+  npsSection.after(preferredRow,factorsRow,loyaltySection);
+
+  previousSections.forEach(section=>{
+    if(section&&section!==preferredRow&&section!==factorsRow&&section!==loyaltySection&&section!==npsSection&&!section.children.length) section.remove();
   });
 }
 
@@ -3171,44 +3156,16 @@ function renderAirlineComprehensive(){
       };
     }).sort((a,b) => b.value - a.value).slice(0, 7);
 
-    const w = Math.max(320, el.clientWidth || 450);
-    const labelW = Math.min(200, Math.max(150, w * 0.44));
-    const trackW = Math.max(80, w - labelW - 75);
-
-    d3.select("#airlineStrategyChart").selectAll("*").remove();
-    const container = d3.select("#airlineStrategyChart").append("div")
-      .attr("class", "q17-strategy-list");
     if(!STRATEGIES_SLIDE1.length || !denominator){
-      container.append("div").attr("class","empty-chart").text("No data available for this selection.");
+      el.innerHTML='<div class="empty-chart">No data available for this selection.</div>';
       return;
     }
-
-    STRATEGIES_SLIDE1.forEach((d) => {
-      const row = container.append("div")
-        .attr("class", "q17-strategy-row")
-        .style("cursor", "pointer")
-        .on("click", () => showQ18Drill(d.label));
-
-      row.append("div")
-        .attr("class", "q17-strategy-label")
-        .style("width", `${labelW}px`)
-        .text(d.label);
-
-      const barWrap = row.append("div")
-        .attr("class", "q17-strategy-barwrap")
-        .style("width", `${trackW}px`);
-
-      barWrap.append("div")
-        .attr("class", "q17-strategy-track")
-        .append("div")
-        .attr("class", "q17-strategy-fill")
-        .style("width", `${Math.round(d.value * 100)}%`)
-        .style("background", d.color);
-
-      row.append("div")
-        .attr("class", "q17-strategy-val")
-        .style("color", d.color)
-        .text(fmt(d.value));
+    horizontalBars("#airlineStrategyChart",STRATEGIES_SLIDE1,{
+      height:300,
+      max:0.45,
+      color:"#530095",
+      disableFilter:true,
+      onClick:d=>showQ18Drill(d.label)
     });
 
     // Q18 close btn
@@ -3265,7 +3222,7 @@ function renderAirlineComprehensive(){
 
     el.innerHTML = cardData.map(t => `
       <article class="slide2-nps-card">
-        <div class="slide2-nps-header">${escapeHtml(t.carrier)}</div>
+        <div class="slide2-nps-header">${escapeHtml(displayLabelText(t.carrier))}</div>
         <div class="slide2-nps-body">
           <div class="slide2-nps-score">${t.score}</div>
           <div class="slide2-nps-label">NPS Score${t.n ? ` · n=${t.n}` : ''}</div>
@@ -3457,7 +3414,48 @@ window.renderAirlineApp = renderAirlineComprehensive;
 /* ═════════════════════════════════════════════════════════════════════
    HOTEL POV COMPREHENSIVE IMPLEMENTATION (Slide 1 & Slide 2)
    ═════════════════════════════════════════════════════════════════════ */
+function orderHotelSections(){
+  const tab=document.querySelector('.tab-panel[data-panel="hotel"]');
+  const accommodation=document.getElementById("hotelAccomChart")?.closest("article");
+  const brand=document.getElementById("hotelBrandChangeChart")?.closest("article");
+  const strategy=document.getElementById("hotelStrategyChart")?.closest("article");
+  const nps=document.getElementById("hotelNpsScoreCards")?.closest("section");
+  const loyalty=document.getElementById("hotelLoyaltyChart")?.closest("section");
+  const sentiment=tab?.querySelector(".hotel-sentiment-gauge-section");
+  if(!tab||!accommodation||!brand||!strategy||!nps||!loyalty||!sentiment) return;
+
+  const originalRow=accommodation.closest("section");
+  const row=(id,className)=>{
+    let element=document.getElementById(id);
+    if(!element){
+      element=document.createElement("section");
+      element.id=id;
+      element.className=className;
+    }
+    return element;
+  };
+  const slot=id=>{
+    let element=document.getElementById(id);
+    if(!element){
+      element=document.createElement("div");
+      element.id=id;
+      element.className="hotel-question-slot";
+    }
+    return element;
+  };
+
+  const preferredRow=row("hotelPreferredRow","grid hotel-order-row hotel-order-three");
+  const reasonsRow=row("hotelReasonsRow","grid two hotel-order-row hotel-order-two");
+  preferredRow.append(accommodation,slot("hotelQ20Slot"),brand);
+  reasonsRow.append(slot("hotelQ22Slot"),strategy);
+  loyalty.id="hotelLoyaltyRow";
+  loyalty.classList.add("hotel-order-row","hotel-order-two");
+  sentiment.after(nps,preferredRow,reasonsRow,loyalty);
+  if(originalRow&&originalRow!==preferredRow&&!originalRow.children.length) originalRow.remove();
+}
+
 function renderHotelComprehensive() {
+  orderHotelSections();
   renderHotelInsight();
   renderHotelSentimentOverview();
 
@@ -3487,27 +3485,11 @@ function renderHotelComprehensive() {
       { label: "Exclusive experiences & added value", value: 0.14, color: "#7c3aed", key: "exp" }
     ];
 
-    const w = Math.max(280, el.clientWidth || 360);
-    const labelW = Math.min(180, Math.max(130, w * 0.44));
-    const trackW = Math.max(60, w - labelW - 60);
-
-    d3.select("#hotelStrategyChart").selectAll("*").remove();
-    const container = d3.select("#hotelStrategyChart").append("div").attr("class", "slide2-bar-list");
-
-    STRATEGIES.forEach(d => {
-      const row = container.append("div")
-        .attr("class", "slide2-bar-row")
-        .style("cursor", "pointer")
-        .attr("title", `Click to see top 3 hotel brands for: ${d.label}`)
-        .on("click", () => openQ24Drill(d.label, d.key));
-
-      row.append("div").attr("class", "slide2-bar-label").style("width", `${labelW}px`).text(d.label);
-      const track = row.append("div").attr("class", "slide2-bar-track").style("width", `${trackW}px`);
-      track.append("div").attr("class", "slide2-bar-fill")
-        .style("width", `${Math.round(d.value * 100 * 1.4)}%`)
-        .style("max-width", "100%")
-        .style("background", d.color);
-      row.append("div").attr("class", "slide2-bar-val").style("color", "#2f2738").text(fmt(d.value));
+    horizontalBars("#hotelStrategyChart",STRATEGIES,{
+      height:300,
+      color:"#530095",
+      disableFilter:true,
+      onClick:d=>openQ24Drill(d.label,d.key)
     });
 
     function openQ24Drill(strategyLabel, key) {
@@ -3624,7 +3606,7 @@ function renderHotelComprehensive() {
 
     el.innerHTML = cardData.map(t => `
       <article class="slide2-nps-card">
-        <div class="slide2-nps-header">${escapeHtml(t.brand)}</div>
+        <div class="slide2-nps-header">${escapeHtml(displayLabelText(t.brand))}</div>
         <div class="slide2-nps-body">
           <div class="slide2-nps-score">${t.score}</div>
           <div class="slide2-nps-label">NPS Score${t.n ? ` · n=${t.n}` : ''}</div>
@@ -3745,6 +3727,7 @@ function renderHotelComprehensive() {
   })();
 
   scheduleTabQuestionExplorer("hotel");
+  renderHotelPrimaryQuestions();
 }
 
 /* ═════════════════════════════════════════════════════════════════════
@@ -5646,8 +5629,12 @@ function escapeHtml(v){
     .replace(/'/g,"&#039;");
 }
 
+function displayLabelText(value){
+  return clean(value).replace(/^others?\s*\(please+\s+specify\)$/i,"Others");
+}
+
 function chartDisplayLabel(d){
-  return clean(d?.displayLabel ?? d?.label ?? "");
+  return displayLabelText(d?.displayLabel ?? d?.label ?? "");
 }
 
 function chartFilterLabel(d){
@@ -6052,6 +6039,37 @@ function renderRankSurveyQuestion(card,key,def){
   }
 }
 
+function renderSurveyBarListEl(el,data,key){
+  if(!el) return;
+  const rows=[...(data||[])].filter(d=>Number.isFinite(+d.value)&&String(d.label||"").trim());
+  if(key==="Q20"){
+    const ratingOrder=label=>{
+      const text=String(label).toLowerCase().replace(/â€™|’/g,"'");
+      const stars=text.match(/\b([1-5])\s*stars?\b/);
+      if(stars)return 5-Number(stars[1]);
+      return /doesn['’]?t\s+apply|does\s+not\s+apply/.test(text)?5:6;
+    };
+    rows.sort((a,b)=>ratingOrder(a.label)-ratingOrder(b.label)||b.value-a.value);
+  }else rows.sort((a,b)=>b.value-a.value);
+  const root=d3.select(el);root.selectAll("*").remove();
+  if(!rows.length){root.append("div").attr("class","empty-chart").text("No data available for this selection.");return;}
+  const w=Math.max(280,el.clientWidth||420);
+  const labelW=Math.min(170,Math.max(130,w*.40));
+  const trackW=Math.max(70,w-labelW-65);
+  const colors=["#221345","#452080","#6d529b","#a390c5","#d4cce6"];
+  const container=root.append("div").attr("class","slide2-bar-list");
+  rows.forEach((d,i)=>{
+    const row=container.append("div").attr("class","slide2-bar-row");
+    row.append("div").attr("class","slide2-bar-label").style("width",`${labelW}px`).text(d.label).attr("title",d.label);
+    const track=row.append("div").attr("class","slide2-bar-track").style("width",`${trackW}px`);
+    track.append("div").attr("class","slide2-bar-fill")
+      .style("width",`${Math.max(0,Math.min(100,+d.value*100))}%`)
+      .style("background",colors[i%colors.length]);
+    row.append("div").attr("class","slide2-bar-val").style("color","#2f2738").text(fmt(d.value));
+    row.style("cursor","pointer").on("click",()=>surveyToggleFilter(key,d.label));
+  });
+}
+
 function renderMatrixQuestion(card,key,def){
   const root=card.querySelector(".survey-matrix");
   const rows=def.rows||[];
@@ -6143,9 +6161,37 @@ function renderSurveyCard(def,targetId="surveyQuestionGrid"){
     const chartHeight = type==="nps" ? 300 : type==="numeric" ? 250 : type==="rank" ? 300 : Math.max(250, Math.min(520, data.length*27+55));
     if(data.length>12) chart.classList.add("long-chart");
     // Pass element directly instead of selector string to avoid cross-grid ID collision
-    renderSurveyVisualizationEl(chart,data,type,{height:chartHeight});
+    if(key==="Q20") renderSurveyBarListEl(chart,data,key);
+    else if(key==="Q22") horizontalBars(`#${scopedId}`,data,{
+      height:300,
+      color:"#530095",
+      disableFilter:true,
+      onClick:d=>surveyToggleFilter(key,d.label)
+    });
+    else renderSurveyVisualizationEl(chart,data,type,{height:chartHeight});
     if(type==="rank") renderRankSurveyQuestionEl(card,chart,key,def);
   }
+}
+
+function renderHotelPrimaryQuestions(){
+  [["Q20","hotelQ20Slot"],["Q22","hotelQ22Slot"]].forEach(([key,slotId])=>{
+    const slot=document.getElementById(slotId);
+    const def=surveyDefinition(key);
+    if(!slot||!def)return;
+    slot.innerHTML="";
+    renderSurveyCard(def,slotId);
+    const card=slot.lastElementChild;
+    if(!card)return;
+    card.id=questionAnchorId(key);
+    card.classList.add("hotel-primary-question-card");
+    if(key==="Q20"){
+      const heading=card.querySelector(".survey-head-copy h2");
+      if(heading)heading.textContent="Preferred Accommodation Rating";
+    }else if(key==="Q22"){
+      const heading=card.querySelector(".survey-head-copy h2");
+      if(heading)heading.textContent="Key Accommodation Selection Factors";
+    }
+  });
 }
 
 
@@ -6174,7 +6220,7 @@ function renderTabQuestionExplorer(tabName){
   if(jump){
     jump.innerHTML=keys.map(key=>{
       const def=surveyDefinition(key);
-      const label=surveyQuestionText(def).replace(/\?$/,"");
+      const label=tabName==="hotel"&&key==="Q20"?"Q20":surveyQuestionText(def).replace(/\?$/," ");
       return `<button type="button" class="question-pill" data-question-target="${questionAnchorId(key)}">${escapeHtml(label)}</button>`;
     }).join("");
     jump.querySelectorAll(".question-pill").forEach(btn=>btn.addEventListener("click",()=>{
@@ -6188,7 +6234,8 @@ function renderTabQuestionExplorer(tabName){
     const key=keys[index++];
     if(!key) return;
     const def=surveyDefinition(key);
-    if(def){
+    const isPromotedHotelQuestion=tabName==="hotel"&&["Q20","Q22"].includes(key)&&document.getElementById(questionAnchorId(key));
+    if(def&&!isPromotedHotelQuestion){
       renderSurveyCard(def,`${tabName}QuestionGrid`);
       const card=grid.lastElementChild;
       if(card) card.id=questionAnchorId(key);

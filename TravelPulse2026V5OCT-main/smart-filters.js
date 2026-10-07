@@ -98,6 +98,21 @@ function classOptions() {
   return [...new Set(DATA.records.map(r => r[field]).filter(Boolean))].sort();
 }
 
+const SEGMENT_FILTER_GROUPS = [
+  { label: "Segment by Age", options: [
+    { value: "Segment_Age|18-34", label: "18–34" },
+    { value: "Segment_Age|35-54", label: "35–54" },
+    { value: "Segment_Age|55+", label: "55+" }
+  ] },
+  { label: "Segment by Budget", options: [
+    { value: "Segment_Budget|Budget Travelers", label: "Budget Travelers" },
+    { value: "Segment_Budget|Luxury Travelers", label: "Luxury Travelers" },
+    { value: "Segment_Budget|Premium Travelers", label: "Premium Travelers" }
+  ] }
+];
+const SEGMENT_FILTER_OPTIONS = SEGMENT_FILTER_GROUPS.flatMap(group => group.options);
+const SEGMENT_FILTER_LABELS = Object.fromEntries(SEGMENT_FILTER_OPTIONS.map(option => [option.value, option.label]));
+
 /* ── 5 filters as requested ─────────────────────────────────── */
 const SMART_FILTER_CONFIG = [
   {
@@ -119,9 +134,12 @@ const SMART_FILTER_CONFIG = [
     default: []
   },
   {
-    value:   "Class",
-    get label() { return classLabel(); },
-    options: classOptions,
+    value:   "Segments",
+    label:   "Segments",
+    options: () => SEGMENT_FILTER_OPTIONS.map(option => option.value),
+    labels:  SEGMENT_FILTER_LABELS,
+    groups:  SEGMENT_FILTER_GROUPS,
+    singleSelect: true,
     default: []
   },
   {
@@ -329,6 +347,13 @@ function smartMatch(r, dim, vals, recIdx) {
     case "RegionMarket":  return true;
     case "Region":        return vals.includes(r.Region);
     case "Trip Type":     return vals.includes(r["Trip Type"]);
+    case "Segments": {
+      const separator = vals[0].indexOf("|");
+      if (separator < 0) return true;
+      const field = vals[0].slice(0, separator);
+      const value = vals[0].slice(separator + 1);
+      return (field === "Segment_Age" || field === "Segment_Budget") && clean(r[field]) === value;
+    }
     case "Age Group": {
       const exp = vals.flatMap(v => v === "25\u201344" ? ["25-34","35-44"] : [v]);
       return exp.includes(r["Age Group"]);
@@ -436,7 +461,7 @@ function buildFilterControlsCascade() {
       .attr("class","multi-menu")
       .attr("data-menu", cfg.value)
       .attr("role","listbox")
-      .attr("aria-multiselectable","true");
+      .attr("aria-multiselectable",cfg.singleSelect?"false":"true");
 
     root.append("div").attr("class","filter-selection-count");
     renderSmartMenu(cfg.value);
@@ -465,6 +490,76 @@ function fmtSelection(vals, cfg) {
   return `${vals.length} selected`;
 }
 
+function applySmartFilterSelection(dim, values) {
+  const cfg = SMART_FILTER_CONFIG.find(item => item.value === dim);
+  if (!cfg) return;
+  const valid = new Set(cfg.options());
+  const next = [...new Set(values)].filter(value => valid.has(value)).slice(0, 1);
+
+  const update = () => {
+    filterSelections[dim] = next;
+    if (typeof invalidateRowCache === "function") invalidateRowCache();
+    enforceCascades();
+    if (typeof filterDim !== "undefined") filterDim = dim;
+    if (typeof activeSelections !== "undefined") activeSelections = [...next];
+    if (typeof segment !== "undefined") segment = fmtSelection(next, cfg);
+    buildFilterControlsCascade();
+    updateFilterSummaries();
+    if (typeof updateSegmentBase === "function") updateSegmentBase();
+    if (typeof renderActive === "function") renderActive();
+  };
+
+  if (typeof window.runDashboardUpdate === "function") {
+    window.runDashboardUpdate(update, "Updating filters...");
+  } else {
+    update();
+  }
+}
+
+function renderSegmentsMenu(cfg, menu) {
+  const selected = (filterSelections[cfg.value] || [])[0] || "";
+  menu.html("").classed("segment-filter-menu", true);
+  menu.append("button")
+    .attr("type", "button")
+    .attr("class", "segment-filter-clear")
+    .property("disabled", !selected)
+    .text("Clear selection")
+    .on("click", event => {
+      event.stopPropagation();
+      applySmartFilterSelection(cfg.value, []);
+    });
+
+  cfg.groups.forEach(group => {
+    const section = menu.append("div")
+      .attr("class", "segment-filter-group")
+      .attr("role", "group")
+      .attr("aria-label", group.label);
+    section.append("div")
+      .attr("class", "segment-filter-heading")
+      .text(group.label);
+    const rows = section.selectAll("label.segment-filter-option")
+      .data(group.options)
+      .join("label")
+      .attr("class", "multi-option segment-filter-option");
+    rows.each(function(option) {
+      const row = d3.select(this);
+      row.append("input")
+        .attr("class", "segment-filter-choice")
+        .attr("type", "checkbox")
+        .attr("name", "segmentFilterChoice")
+        .attr("value", option.value)
+        .attr("aria-label", option.label)
+        .property("checked", option.value === selected);
+      row.append("span").text(option.label);
+    });
+  });
+
+  menu.selectAll("input.segment-filter-choice").on("change", function(event) {
+    event.stopPropagation();
+    applySmartFilterSelection(cfg.value, this.checked ? [this.value] : []);
+  });
+}
+
 function renderSmartMenu(dim) {
   if (dim === "RegionMarket") {
     renderRegionMarketMenu();
@@ -476,6 +571,10 @@ function renderSmartMenu(dim) {
   const selected = filterSelections[dim] || [];
   const menu     = d3.select(`.multi-menu[data-menu="${CSS.escape(dim)}"]`);
   if (menu.empty()) return;
+  if (cfg.singleSelect) {
+    renderSegmentsMenu(cfg, menu);
+    return;
+  }
 
   const search = menu.selectAll("input.multi-search").data([dim]).join("input")
     .attr("class", "multi-search")
@@ -606,6 +705,35 @@ function updateFilterSummaries() {
     .multi-select.open  { border-color: #452080; background: #fff; }
     .filter-selection-count { font-size: 7px; color: #9b8dc1; margin-top: 2px; min-height: 9px; }
     .filter-control:has(.multi-menu.open) { z-index: 60; }
+    .multi-menu.segment-filter-menu {
+      width: min(260px, calc(100vw - 24px));
+      max-height: min(390px, calc(100vh - 100px));
+      overflow: auto;
+      padding: 7px;
+    }
+    .segment-filter-clear {
+      width: 100%;
+      margin-bottom: 4px;
+      padding: 5px;
+      border: 0;
+      border-bottom: 1px solid #ede9f5;
+      background: transparent;
+      color: #530095;
+      font: 700 9px "DM Sans", sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+    .segment-filter-clear:disabled { color: #9b8dc1; cursor: default; }
+    .segment-filter-group { padding: 3px 0 5px; }
+    .segment-filter-group + .segment-filter-group { border-top: 1px solid #eee8f7; }
+    .segment-filter-heading {
+      padding: 5px;
+      color: #756985;
+      font: 800 8px "DM Sans", sans-serif;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .segment-filter-option input { accent-color: #530095; }
     .filter-control--region-market .multi-menu {
       width: min(390px, calc(100vw - 32px));
       max-height: 430px;
@@ -697,6 +825,7 @@ function updateFilterSummaries() {
     SMART_FILTER_CONFIG.forEach(cfg => {
       if (!filterSelections[cfg.value]) filterSelections[cfg.value] = [];
     });
+    filterSelections.Class = [];
 
     buildFilterControlsCascade();
     if (typeof updateSegmentBase === "function") updateSegmentBase();

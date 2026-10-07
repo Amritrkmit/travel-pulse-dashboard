@@ -277,15 +277,21 @@ function renderOrganicWordCloud(sel, items, options = {}) {
   }
 
   const FONT = "'Oswald','Bebas Neue','Arial Narrow',sans-serif";
-  const w = Math.max(360, el.offsetWidth || 500);
+  const w = Math.max(options.minWidth || 360, el.offsetWidth || 500);
   const h = Math.max(options.height || 0, 320);
+  const layoutWidth=options.square?Math.min(w,h):w;
+  const layoutHeight=options.square?layoutWidth:h;
   const token = (el.__wcToken = (el.__wcToken || 0) + 1);
 
   const sorted = [...items].sort((a, b) => b.count - a.count);
   const maxC = sorted[0].count || 1;
   const minC = sorted[sorted.length - 1].count || 1;
   const topLen = Math.max(4, String(sorted[0].text).length);
-  const maxFont = Math.min(h * 0.42, (w * 0.55) / (topLen * 0.45));
+  const maxFont = Math.min(
+    layoutHeight * (options.maxHeightRatio || 0.42),
+    (layoutWidth * (options.maxWidthRatio || 0.55)) / (topLen * 0.45),
+    options.maxFont || Infinity
+  );
   const minFont = options.minFont || 11;
   const ratio = c => (maxC === minC ? 1 : Math.pow((c - minC) / (maxC - minC), 0.6));
 
@@ -321,7 +327,7 @@ function renderOrganicWordCloud(sel, items, options = {}) {
       const x0 = d3.min(placed, d => d.x + d.x0), x1 = d3.max(placed, d => d.x + d.x1);
       const y0 = d3.min(placed, d => d.y + d.y0), y1 = d3.max(placed, d => d.y + d.y1);
       const bw = x1 - x0, bh = y1 - y0;
-      if (bw > 0 && bh > 0) k = Math.min((w - 24) / bw, (h - 24) / bh, 1.25);
+      if (bw > 0 && bh > 0) k = Math.min((layoutWidth - 24) / bw, (layoutHeight - 24) / bh, 1.25);
       cx = (x0 + x1) / 2;
       cy = (y0 + y1) / 2;
     }
@@ -375,19 +381,23 @@ function renderOrganicWordCloud(sel, items, options = {}) {
       text: String(it.text).toUpperCase(),
       filterKey: it.filterKey,
       size: Math.max(9, (minFont + ratio(it.count) * (maxFont - minFont)) * scale),
-      rotate: i === 0 ? 0 : (i % 3 === 1 ? -90 : 0)   // ~1/3 vertical, hero word horizontal
+      rotate: options.randomOrientation
+        ? (Math.random() < (options.verticalRatio ?? 0.35) ? -90 : 0)
+        : (i === 0 ? 0 : (i % 3 === 1 ? -90 : 0))
     }));
-    d3.layout.cloud()
-      .size([w - 10, h - 10])
+    const cloud=d3.layout.cloud()
+      .size([layoutWidth - 10, layoutHeight - 10])
       .words(words)
-      .padding(2)
-      .spiral('rectangular')
-      .rotate(d => d.rotate)
+      .padding(options.padding ?? 2)
+      .spiral(options.spiral || 'rectangular')
+      .rotate(d => options.horizontalOnly ? 0 : d.rotate)
       .font(FONT)
       .fontWeight(700)
-      .fontSize(d => d.size)
+      .fontSize(d => d.size);
+    if(options.random)cloud.random(Math.random);
+    cloud
       .on('end', (placed, bounds) => {
-        if (placed.length < words.length && attempt < 10) layoutTry(scale * 0.92, attempt + 1);
+        if (placed.length < words.length && attempt < (options.maxAttempts ?? 10)) layoutTry(scale * 0.92, attempt + 1);
         else draw(placed, bounds);
       })
       .start();
@@ -549,7 +559,7 @@ function renderDestWordCloud(sel) {
     });
   }
 
-  renderOrganicWordCloud(sel, items, { height: 250, minFont: 12, maxFont: 36 });
+  renderOrganicWordCloud(sel, items, { height: 340, minFont: 12, maxFont: 36 });
 }
 
 /* ------ Future Activities Bar ------ */
@@ -575,6 +585,105 @@ function renderPackageType(sel) {
    OVERRIDE RENDER FUNCTIONS with enhanced versions
    ================================================================ */
 
+let socialThemeWordCloudToken=0;
+function renderSocialThemeWordCloud(sel){
+  const el=document.querySelector(sel);
+  if(!el)return;
+  const token=++socialThemeWordCloudToken;
+  const marketSelection=filterSelections.Market||[];
+  const regionSelection=filterSelections.Region||[];
+  if(!(DATA?.socialRecords||[]).length){
+    d3.select(el).html('<div class="empty-chart" style="padding:40px;text-align:center;color:#8a7e98;">Loading social themes…</div>');
+  }
+  const load=typeof loadSocialData==="function"?loadSocialData():Promise.resolve(DATA?.socialRecords||[]);
+  Promise.resolve(load).then(()=>{
+    if(token!==socialThemeWordCloudToken||currentTab!=="overview")return;
+    const rows=(DATA?.socialRecords||[]).filter(record=>{
+      if(clean(record.wave).toLowerCase()!=="wave 4")return false;
+      const market=MARKET_ALIASES[clean(record.sourceMarket)]||clean(record.sourceMarket);
+      const region=clean(record.region);
+      return (!marketSelection.length||marketSelection.includes(market))
+        &&(!regionSelection.length||regionSelection.includes(region));
+    });
+    const counts=new Map();
+    rows.forEach(record=>{
+      const themes=Array.isArray(record.themes)?record.themes:[record.themes];
+      new Set(themes.map(clean).filter(Boolean)).forEach(theme=>counts.set(theme,(counts.get(theme)||0)+1));
+    });
+    const items=[...counts.entries()]
+      .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+      .map(([theme,count])=>({
+        text:theme,
+        count,
+        tip:{label:`Social theme: ${theme}`,value:`${count.toLocaleString()} mentions`}
+      }));
+    if(!items.length){
+      d3.select(el).html('<div class="empty-chart" style="padding:40px;text-align:center;color:#8a7e98;">No social themes for the selected source markets.</div>');
+      return;
+    }
+    renderOrganicWordCloud(sel,items,{
+      height:340,
+      minFont:32,
+      maxFont:54,
+      maxWidthRatio:1,
+      maxHeightRatio:1,
+      minWidth:300,
+      padding:2,
+      horizontalOnly:true,
+      spiral:"archimedean",
+      random:true,
+      maxAttempts:30
+    });
+  }).catch(error=>{
+    if(token!==socialThemeWordCloudToken)return;
+    console.error("Social theme cloud error:",error);
+    d3.select(el).html('<div class="empty-chart" style="padding:40px;text-align:center;color:#8a7e98;">Social themes could not be loaded.</div>');
+  });
+}
+
+function renderQ2PlanningStage(sel){
+  const el=document.querySelector(sel);
+  if(!el)return;
+  const stages=[
+    {match:/yet to start planning/i,label:"Not started",color:"#530095"},
+    {match:/researching destinations/i,label:"Researching",color:"#2563a6"},
+    {match:/planning my itinerary/i,label:"Planning itinerary",color:"#00a6a0"},
+    {match:/making travel arrangements/i,label:"Arranging travel",color:"#78bd45"},
+    {match:/already booked/i,label:"Booked",color:"#f0a63a"}
+  ];
+  const counts=new Map();
+  activeRows().forEach(record=>{
+    const answer=clean(record.Q2||record.planningStage);
+    if(answer)counts.set(answer,(counts.get(answer)||0)+1);
+  });
+  const items=stages.map(stage=>{
+    const answer=[...counts.keys()].find(value=>stage.match.test(value));
+    return answer?{...stage,answer,count:counts.get(answer)}:null;
+  }).filter(Boolean)
+    .sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
+  const total=items.reduce((sum,item)=>sum+item.count,0);
+  const root=d3.select(el);root.selectAll("*").remove();
+  if(!items.length||!total){root.append("div").attr("class","empty-chart").text("No Q2 responses for the selected filters.");return;}
+  const selected=chartFilters?.Q2;
+  const table=root.append("div").attr("class","q2-stage-table");
+  table.append("div").attr("class","q2-stage-table-head")
+    .html("<span>Travel planning stage</span><span>Respondents</span><span>Share</span>");
+  const rows=table.selectAll("button.q2-stage-row").data(items).join("button")
+    .attr("type","button")
+    .attr("class","q2-stage-row")
+    .classed("is-selected",d=>selected===d.answer)
+    .attr("title",d=>`${d.answer} · ${d.count.toLocaleString()} respondents · ${fmt(d.count/total)}`)
+    .on("click",(event,d)=>{event.stopPropagation();surveyToggleFilter("Q2",d.answer);});
+  const copy=rows.append("span").attr("class","q2-stage-copy");
+  copy.append("strong").text(d=>d.label);
+  copy.append("small").text(d=>`${d.count.toLocaleString()} respondents`);
+  const tracks=rows.append("span").attr("class","q2-stage-track");
+  tracks.append("span").attr("class","q2-stage-fill")
+    .style("width",d=>`${d.count/total*100}%`)
+    .style("background",d=>d.color);
+  rows.append("strong").attr("class","q2-stage-share").text(d=>fmt(d.count/total));
+}
+
 function renderOverview(){
   renderGlobalMap('#overviewMap','source');
   renderMapInsight('#mapInsight','source');
@@ -582,25 +691,20 @@ function renderOverview(){
   const market = filterSelections.Market?.length === 1 ? filterSelections.Market[0] : "All Markets";
 
   /* Update titles immediately */
-  const assocTitleEl = document.getElementById("assocWordCloudTitle");
-  if (assocTitleEl) {
-    const activeAssoc = typeof chartFilters !== "undefined" ? chartFilters?.assocWord : null;
-    assocTitleEl.textContent = activeAssoc
-      ? `Key Travel Associations — ${market} (Filtered: ${activeAssoc})`
-      : `Key Travel Associations — ${market}`;
-  }
   const destTitleEl = document.getElementById("destWordCloudTitle");
   if (destTitleEl) {
-    const activeDest = typeof chartFilters !== "undefined" ? chartFilters?.Q3 : null;
-    destTitleEl.textContent = activeDest
-      ? `Key Destinations — ${market} (Filtered: ${activeDest})`
-      : `Key Destinations — ${market}`;
+    const activeStage = typeof chartFilters !== "undefined" ? chartFilters?.Q2 : null;
+    destTitleEl.textContent = activeStage
+      ? `Travel Planning — ${market} (Filtered: ${activeStage})`
+      : `Travel Planning — ${market}`;
   }
+  const socialThemeTitle=document.getElementById("socialThemeWordCloudTitle");
+  if(socialThemeTitle)socialThemeTitle.textContent=`Key Travel Associations — ${market}`;
 
   /* Defer word clouds — CPU-intensive layout runs after browser paints */
   const _schedWC = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (fn => setTimeout(fn, 50));
-  _schedWC(() => renderAssocWordCloud('#assocWordCloud'), { timeout: 2000 });
-  _schedWC(() => renderDestWordCloud('#destWordCloud'),   { timeout: 2000 });
+  _schedWC(() => renderQ2PlanningStage('#q2PlanningStageChart'), { timeout: 2000 });
+  _schedWC(() => renderSocialThemeWordCloud('#socialThemeWordCloud'), { timeout: 2000 });
 
   /* Sentiment engine: recolour map + wave charts.
      180ms delay ensures the D3 map SVG paths are in the DOM. */

@@ -35,20 +35,25 @@ const baseN=()=>{try{return activeRows().length;}catch(e){return 0;}};
 const uidOf=sel=>"pp"+String(sel).replace(/\W/g,"");
 const dispLabel=d=>(typeof chartDisplayLabel==="function"?chartDisplayLabel(d):String(d.displayLabel??d.label??""));
 const filtLabel=d=>(typeof chartFilterLabel==="function"?chartFilterLabel(d):String(d.filterLabel??d.label??""));
+const stripTooltipCounts=value=>String(value??"")
+  .replace(/\s*\(\s*(?:n|count)\s*[:=]\s*[\d,]+(?:\.\d+)?\s*\)/gi,"")
+  .replace(/\b[\d,]+\s+(?:respondents?|score points?)\b\s*(?:[·,]\s*)?/gi,"")
+  .replace(/(?:^|\s*[·,]\s*)(?:n|count|mentions?)\s*[:=]\s*[\d,]+(?:\.\d+)?/gi,"")
+  .replace(/\bothers?\s*\(please+\s+specify\)/gi,"Others")
+  .replace(/\s*[·,]\s*$/," ").trim();
 const EMPTY_MSG="No records match the current filters.";
 
 /* ---------- one consistent tooltip ---------- */
 const tipEl=()=>document.getElementById("tooltip");
 window.showTip=function(e,d,raw){
   const el=tipEl(); if(!el||!d) return;
-  const v=d.value, title=esc(d.displayLabel||d.label||"");
+  const v=d.value, title=esc(stripTooltipCounts(d.displayLabel||d.label||""));
   let body="";
   const isShare=typeof v==="number"&&Number.isFinite(v)&&Math.abs(v)<=1.0001&&!raw&&d.label!=="NPS Score";
   if(isShare){
-    const count=Number.isFinite(+d.count)?+d.count:v*(+d.total||baseN());
-    body=`<div class="tt-line">Count: <b>${nfmt(count)}</b></div><div class="tt-line">Percentage: <b>${pctTxt(v)}</b></div>`;
+    body=`<div class="tt-line">Percentage: <b>${pctTxt(v)}</b></div>`;
   }else if(typeof v==="string"){
-    body=v.split(" · ").map(x=>`<div class="tt-line"><b>${esc(x)}</b></div>`).join("");
+    body=stripTooltipCounts(v).split(" · ").filter(Boolean).map(x=>`<div class="tt-line"><b>${esc(x)}</b></div>`).join("");
   }else if(Number.isFinite(+v)){
     body=`<div class="tt-line">Value: <b>${Number.isInteger(+v)?(+v):(+v).toFixed(1)}</b></div>`;
   }
@@ -193,7 +198,7 @@ function premiumPie(sel,input,opt,selectedList){
   el.classList.add("pp-host");
   const colors=assignColors(rows).map(c=>d3.interpolateRgb(c,"#ffffff")(.3)).map(c=>d3.color(c).formatHex());   /* softer, lighter pie palette */
   const uid=uidOf(sel);
-  const R=Math.max(44,Math.min(58,(w-24)*.2)), padX=40, S={w:2*(R+padX),h:2*R+46};
+  const R=sel==="#cabinChart"?Math.min(96,Math.max(78,(w-170)*.28)):Math.max(44,Math.min(58,(w-24)*.2)), padX=40, S={w:2*(R+padX),h:2*R+46};
   const cx=S.w/2, cy=S.h/2;
   let wrap,svg,legend;
   if(live){ wrap=state.wrap; svg=state.svg; legend=state.legend; svg.selectAll("g.pp-main").remove(); legend.selectAll("*").remove(); }
@@ -242,9 +247,9 @@ function premiumPie(sel,input,opt,selectedList){
     ll.append("text").attr("class","pp-pct").datum(l).attr("x",s*(R+23)).attr("y",l.y).attr("dy","0.35em").attr("text-anchor",s>0?"start":"end").text(pctTxt(l.a.data.value).replace(".0%","%"));
   });
   /* beside list: Category + Count + Percentage */
-  const li=legend.selectAll("div.pp-row").data(lab).join("div").attr("class","pp-row").attr("title",l=>`${l.a.data.displayLabel}: ${pctTxt(l.a.data.value)}`);
+  const li=legend.selectAll("div.pp-row").data(lab).join("div").attr("class","pp-row").attr("title",l=>`${dispLabel({label:l.a.data.displayLabel})}: ${pctTxt(l.a.data.value)}`);
   li.append("span").attr("class","pp-sw").style("background",l=>colors[l.i]);
-  li.append("span").attr("class","pp-nm").text(l=>l.a.data.displayLabel.replace(/\//g,"/\u200b"));
+  li.append("span").attr("class","pp-nm").text(l=>dispLabel({label:l.a.data.displayLabel}).replace(/\//g,"/\u200b"));
   li.append("span").attr("class","pp-pc").text(l=>pctTxt(l.a.data.value));
 
   const st={root:wrap.node(),wrap,svg,legend,sg,li,lab,arc,R,sig,sel:isSel,hi:null,hover:-1};
@@ -305,8 +310,19 @@ window.behaviourDemographicPie3D=function(sel,data,opt){
     const src=rowsIgnoringChartFilter(spec.key), counts=new Map();
     src.forEach(r=>{const v=spec.get(r); if(v) counts.set(v,(counts.get(v)||0)+1);});
     const tot=[...counts.values()].reduce((a,b)=>a+b,0)||1;
-    data=[...counts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,count])=>({
-      label,filterLabel:label,displayLabel:spec.display?spec.display(label):label,count,total:tot,value:count/tot}));
+    const order=sel==="#planBookingLeadTimePie"
+      ?["<1 mo","1–3 mo","3–6 mo","6–9 mo","9–12 mo","1+ year"]
+      :sel==="#planTripDurationPie"
+        ?["1–2 nights","3–4 nights","5–6 nights","7–8 nights","9–10 nights","10+ nights"]
+        :null;
+    const orderIndex=order?new Map(order.map((label,index)=>[label,index])):null;
+    const formatLabel=label=>String(spec.display?spec.display(label):label).replace(/(\d)-(\d)/g,"$1–$2");
+    data=[...counts.entries()].map(([label,count])=>({
+      label,filterLabel:label,displayLabel:formatLabel(label),count,total:tot,value:count/tot
+    }));
+    data.sort((a,b)=>orderIndex
+      ?(orderIndex.get(a.displayLabel)??Infinity)-(orderIndex.get(b.displayLabel)??Infinity)||b.count-a.count
+      :b.count-a.count);
   }
   return premiumPie(sel,data,opt,[]);
 };
@@ -332,8 +348,8 @@ window.renderPreferenceBars=function(containerId,rows,fields){
     .classed("is-click",!!key).classed("is-sel",d=>selVal===d.label).style("opacity",d=>selVal!=null&&selVal!==d.label?.4:1)
     .each(function(d){
       const row=d3.select(this);
-      row.append("div").attr("class","preference-bar-label").attr("title",d.label).text(d.label);
-      const tr=row.append("div").attr("class","preference-bar-track").attr("role","img").attr("aria-label",`${d.label}: ${fmt(d.value)}`);
+      row.append("div").attr("class","preference-bar-label").attr("title",dispLabel(d)).text(dispLabel(d));
+      const tr=row.append("div").attr("class","preference-bar-track").attr("role","img").attr("aria-label",`${dispLabel(d)}: ${fmt(d.value)}`);
       tr.append("div").attr("class","preference-bar-fill").style("width",`${d.value*100}%`);
       row.append("div").attr("class","preference-bar-value").text(fmt(d.value));
     })
@@ -362,8 +378,9 @@ window.horizontalBars=function(sel,data,opt){
   const root=d3.select(el);
   if(!ranked.length){root.selectAll("*").remove();el.__bars=null;root.append("div").attr("class","empty-chart").text("No data available for this selection.");return;}
   const w=Math.max(280,Math.floor(el.clientWidth||320));
-  const key=window.chartFilterKey(sel), selVal=key?chartFilters[key]:null, bn=baseN();
-  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,!!key,opt.color]);
+  const key=opt.disableFilter?null:window.chartFilterKey(sel), selVal=key?chartFilters[key]:null, bn=baseN();
+  const clickable=!!key||typeof opt.onClick==="function";
+  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,clickable,opt.color]);
   if(el.__bars&&el.__bars.sig===sig&&el.contains(el.__bars.svgNode)) return;
   const names=ranked.map(dispLabel), cpx=5.7;
   const maxLen=d3.max(names,s=>s.length)||10;
@@ -387,7 +404,7 @@ window.horizontalBars=function(sel,data,opt){
   g.append("g").attr("class","gridline").call(d3.axisBottom(x).ticks(4).tickSize(ih).tickFormat("")).call(a=>a.select(".domain").remove());
   const bh=Math.min(y.bandwidth(),22), off=(y.bandwidth()-bh)/2, rx=3;
   const rowsG=g.append("g").attr("filter",`url(#${uid}-sh)`).selectAll("g.pp-bar").data(ranked).join("g").attr("class","pp-bar")
-    .classed("is-click",!!key).classed("is-sel",d=>selVal!=null&&selVal===filtLabel(d)).style("opacity",d=>selVal!=null&&selVal!==filtLabel(d)?.35:1);
+    .classed("is-click",clickable).classed("is-sel",d=>selVal!=null&&selVal===filtLabel(d)).style("opacity",d=>selVal!=null&&selVal!==filtLabel(d)?.35:1);
   rowsG.append("rect").attr("class","pp-depth").attr("x",1.5).attr("y",(d,i)=>y(i)+off+2.8).attr("height",bh).attr("rx",rx)
     .attr("width",d=>Math.max(2,x(Math.max(0,+d.value)))).attr("fill",(d,i)=>shade(cols[i],-.9)).attr("opacity",.5);
   rowsG.append("rect").attr("class","pp-top").attr("x",0).attr("y",(d,i)=>y(i)+off).attr("height",bh).attr("rx",rx)
@@ -395,7 +412,7 @@ window.horizontalBars=function(sel,data,opt){
   rowsG.append("text").attr("class","pp-val").attr("x",d=>Math.min(iw+m.r-34,x(Math.max(0,+d.value))+7)).attr("y",(d,i)=>y(i)+off+bh/2).attr("dy","0.35em").text(valTxt);
   /* wrapped y labels (max 2 lines, full text in title) */
   const lg=g.append("g").attr("class","pp-ylab").selectAll("text").data(ranked).join("text").attr("x",-9).attr("text-anchor","end")
-    .attr("y",(d,i)=>y(i)+off+bh/2).classed("is-click",!!key)
+    .attr("y",(d,i)=>y(i)+off+bh/2).classed("is-click",clickable)
     .style("font-weight",d=>selVal!=null&&selVal===filtLabel(d)?800:null);
   lg.each(function(d,i){
     const t=d3.select(this), r=wrap2(names[i],cpl), n=r.lines.length;
@@ -405,10 +422,10 @@ window.horizontalBars=function(sel,data,opt){
   g.append("g").attr("class","axis").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(4).tickFormat(fmt)).call(a=>a.select(".domain").remove());
   /* hover/click on the whole row hit-area */
   g.append("g").selectAll("rect.pp-hit").data(ranked).join("rect").attr("class","pp-hit").attr("x",-m.l).attr("y",(d,i)=>y(i)-y.step()*y.paddingInner()/2)
-    .attr("width",m.l+iw+m.r).attr("height",y.step()).attr("fill","transparent").classed("is-click",!!key)
+    .attr("width",m.l+iw+m.r).attr("height",y.step()).attr("fill","transparent").classed("is-click",clickable)
     .on("mousemove",(e,d)=>window.showTip(e,{...d,label:dispLabel(d)})).on("mouseenter",(e,d)=>{rowsG.filter(r=>r===d).classed("is-hov",true);})
     .on("mouseleave",(e,d)=>{rowsG.filter(r=>r===d).classed("is-hov",false);window.hideTip();})
-    .on("click",(e,d)=>{e.stopPropagation();if(key)window.toggleChartFilter(key,filtLabel(d));});
+    .on("click",(e,d)=>{e.stopPropagation();if(opt.onClick)opt.onClick(d);else if(key)window.toggleChartFilter(key,filtLabel(d));});
   el.__bars={sig,svgNode:svg.node()}; el.classList.add("pp-host");
 };
 
@@ -528,21 +545,50 @@ const _hb=window.horizontalBars;
 window.horizontalBars=function(sel,data,opt){ if(sel==="#inspireDestChart") data=destRows(data); return _hb(sel,data,opt); };
 
 /* ---------- Segments tab: a different visual per question ---------- */
-const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"waffle",Q8b:"waffle",Q14:"waffle",Q5:"rose",Q8:"rose",Q3:"rose"};
+const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"ribbon",Q8b:"waffle",Q14:"waffle",Q5:"rose",Q8:"ribbon",Q3:"rose"};
 const SEG_SOFT=SEG_COL.map(c=>d3.color(d3.interpolateRgb(c,"#ffffff")(.34)).formatHex());
 const LIGHT_PURPLE=SEG_SOFT[0];
 const tipOf=(e,d)=>window.showTip(e,{label:d.label,value:d.value,count:d.count,total:d.base});
 function legendHTML(host,rows){
   const lg=host.append("div").attr("class","pp-legend seg-legend");
-  const r=lg.selectAll("div.pp-row").data(rows).join("div").attr("class","pp-row").attr("title",d=>d.label);
+  const r=lg.selectAll("div.pp-row").data(rows).join("div").attr("class","pp-row").attr("title",d=>dispLabel(d));
   r.append("span").attr("class","pp-sw").style("background",(d,i)=>SEG_SOFT[i%SEG_SOFT.length]);
-  r.append("span").attr("class","pp-nm").text(d=>d.label);
+  r.append("span").attr("class","pp-nm").text(d=>dispLabel(d));
   r.append("span").attr("class","pp-pc").text(d=>pctTxt(d.value));
 }
 const SEGVIZ={
   bars(el,rows,w){ window.horizontalBars("#"+el.id,rows.map(d=>({...d,total:d.base})),{color:LIGHT_PURPLE,gradient:true,height:rows.length*32+30,labelWidth:Math.min(150,Math.floor(w*.42))}); },
   donut(el,rows){ premiumPie("#"+el.id,rows.map(d=>({...d,total:d.base})),{category:"Segment answers",center:"answers"},[]); },
   cloud(el,rows,w){ wordCloud(el,rows.map(d=>({...d,filterLabel:d.label})),{h:230,max:14,maxFont:26,minFont:11}); },
+  ribbon(el,rows,w){
+    const colors=["#0055A5","#00A99D","#FF5635","#6A3E9B","#E3A100","#368A58","#C44575"], rowH=30, headerH=22, height=rows.length*rowH, svgW=100;
+    const wrap=d3.select(el).append("div").attr("class","seg-ribbon");
+    const layout=wrap.append("div").attr("class","seg-ribbon-layout");
+    const table=layout.append("div").attr("class","seg-ribbon-table").style("--ribbon-rows",rows.length);
+    const questionKey=(el.closest(".segment-question-section")?.getAttribute("aria-label")||"").split(" ")[0];
+    const head=table.append("div").attr("class","seg-ribbon-head");
+    head.append("span").text(questionKey==="Q8"?"CHANNEL":"PURPOSE"); head.append("span").text("SHARE");
+    const line=table.selectAll("div.seg-ribbon-row").data(rows).join("div").attr("class","seg-ribbon-row");
+    line.append("span").attr("class","seg-ribbon-name").attr("title",d=>d.label).text(d=>d.label);
+    line.append("span").attr("class","seg-ribbon-pct").text(d=>pctTxt(d.value));
+    line.on("mousemove",tipOf).on("mouseleave",()=>window.hideTip());
+
+    const total=d3.sum(rows,d=>d.count)||1;
+    let cursor=0;
+    const bands=rows.map((d,i)=>{
+      const y0=cursor, y1=cursor+height*d.count/total;
+      cursor=y1;
+      return {data:d,index:i,y0,y1,color:colors[i%colors.length]};
+    });
+    const svg=layout.append("svg").attr("class","seg-ribbon-svg").attr("viewBox",`0 0 ${svgW} ${height+headerH}`).style("height",`${height+headerH}px`).attr("aria-hidden","true");
+    svg.selectAll("path.seg-ribbon-flow").data(bands).join("path").attr("class","seg-ribbon-flow")
+      .attr("d",(d,i)=>{const y0=i*rowH+headerH,y1=y0+rowH,dy0=d.y0+headerH,dy1=d.y1+headerH,x1=svgW*.36,x2=svgW*.58;return `M0,${y0} C${x1},${y0} ${x2},${dy0} ${svgW-8},${dy0} L${svgW-8},${dy1} C${x2},${dy1} ${x1},${y1} 0,${y1} Z`;})
+      .attr("fill",d=>d.color).attr("opacity",.58)
+      .on("mousemove",(event,d)=>tipOf(event,d.data)).on("mouseleave",()=>window.hideTip());
+    svg.selectAll("rect.seg-ribbon-stack").data(bands).join("rect").attr("class","seg-ribbon-stack")
+      .attr("x",svgW-8).attr("y",d=>d.y0+headerH).attr("width",8).attr("height",d=>Math.max(0,d.y1-d.y0))
+      .attr("fill",d=>d.color).attr("stroke","#fff").attr("stroke-width",.7);
+  },
   lollipop(el,rows,w){
     const lw=Math.min(Math.floor(w*.5),170), rh=32, h=rows.length*rh+8, iw=w-lw-52, cpl=Math.max(8,Math.floor((lw-10)/5.4));
     const svg=d3.select(el).append("svg").attr("class","pp-bars").attr("width",w).attr("height",h).attr("viewBox",`0 0 ${w} ${h}`);
