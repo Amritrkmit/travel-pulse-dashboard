@@ -679,7 +679,7 @@ function updateFilterSummaries() {
     }
     .filter-label {
       display: block;
-      font-size: 7.5px;
+      font-size: 10px;
       color: #8a7e98;
       font-weight: 700;
       text-transform: uppercase;
@@ -692,7 +692,7 @@ function updateFilterSummaries() {
     .multi-select {
       width: 100% !important;
       min-height: 28px;
-      font-size: 9.5px;
+      font-size: 12px;
       padding: 0 8px;
       border-radius: 4px;
       border: 1px solid #d4cce8;

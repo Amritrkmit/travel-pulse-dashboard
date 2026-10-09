@@ -47,6 +47,36 @@ const MARKET_ALIASES={
   "USA":"United States of America",
   "United States":"United States of America"
 };
+/* ── Tolerant country-name matching (case / spacing / punctuation / common spellings) ── */
+const _nameKey=v=>String(v==null?"":v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+const _MARKET_KEY_ALIASES={
+  uae:"United Arab Emirates",unitedarabemirates:"United Arab Emirates",emirates:"United Arab Emirates",
+  uk:"United Kingdom",unitedkingdom:"United Kingdom",greatbritain:"United Kingdom",england:"United Kingdom",
+  usa:"United States of America",us:"United States of America",unitedstates:"United States of America",
+  unitedstatesofamerica:"United States of America",america:"United States of America",
+  russia:"Russian Federation",russianfederation:"Russian Federation",
+  southkorea:"Korea, Republic of (South Korea)",korea:"Korea, Republic of (South Korea)",
+  korearepublicofsouthkorea:"Korea, Republic of (South Korea)",republicofkorea:"Korea, Republic of (South Korea)"
+};
+function canonMarket(raw){
+  const c=String(raw==null?"":raw).trim(); if(!c) return c;
+  if(MARKET_ALIASES[c]) return MARKET_ALIASES[c];
+  const k=_nameKey(c);
+  if(_MARKET_KEY_ALIASES[k]) return _MARKET_KEY_ALIASES[k];
+  const hit=(typeof MARKETS!=="undefined"?MARKETS:[]).find(m=>_nameKey(m)===k);
+  return hit||c;
+}
+/* look a market up in a {marketName: value} object whatever spelling the object uses */
+const _mktIdx=new WeakMap();
+function mktLookup(obj,market){
+  if(!obj||market==null) return undefined;
+  if(Object.prototype.hasOwnProperty.call(obj,market)) return obj[market];
+  let idx=_mktIdx.get(obj);
+  if(!idx){ idx={}; Object.keys(obj).forEach(k=>{ idx[_nameKey(canonMarket(k))]=k; idx[_nameKey(k)]=k; }); _mktIdx.set(obj,idx); }
+  const k=idx[_nameKey(canonMarket(market))]||idx[_nameKey(market)];
+  return k!==undefined?obj[k]:undefined;
+}
+window.canonMarket=canonMarket; window.mktLookup=mktLookup;
 const MARKET_REGIONS={
   "Australia":"Oceania","Bahrain":"ME","Brazil":"LATAM","Canada":"North America",
   "China":"Asia","Egypt":"Africa","France":"Europe","Germany":"Europe",
@@ -114,7 +144,7 @@ const normalizeDest = d => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 const normalizeRecord=r=>{
-  const market=MARKET_ALIASES[clean(r.Market)]||clean(r.Market);
+  const market=canonMarket(clean(r.Market));
   const hotelBrand=clean(r.hotelBrand||r.Q21).replace(/<[^>]*>/g,"").trim();
   return {
     ...r,
@@ -126,6 +156,24 @@ const normalizeRecord=r=>{
 };
 const AGES=["18-24","25-34","35-44","45-54","55-65","65+"];
 const MARKETS=["Australia","Bahrain","Brazil","Canada","China","Egypt","France","Germany","India","Indonesia","Italy","Japan","Jordan","Kenya","Malaysia","Netherlands","Nigeria","Qatar","Russian Federation","Saudi Arabia","Singapore","Korea, Republic of (South Korea)","Spain","Switzerland","Thailand","Turkey","United Arab Emirates","United Kingdom","United States of America","South Africa","Ireland"];
+const MARKET_ISO3={
+  Australia:"AUS",Bahrain:"BHR",Brazil:"BRA",Canada:"CAN",China:"CHN",Egypt:"EGY",France:"FRA",Germany:"DEU",India:"IND",Indonesia:"IDN",Italy:"ITA",Japan:"JPN",Jordan:"JOR",Kenya:"KEN",Malaysia:"MYS",Netherlands:"NLD",Nigeria:"NGA",Qatar:"QAT",
+  "Russian Federation":"RUS","Saudi Arabia":"SAU",Singapore:"SGP","Korea, Republic of (South Korea)":"KOR",Spain:"ESP",Switzerland:"CHE",Thailand:"THA",Turkey:"TUR","United Arab Emirates":"ARE","United Kingdom":"GBR","United States of America":"USA","South Africa":"ZAF",Ireland:"IRL"
+};
+const ISO3_TO_MARKET=Object.fromEntries(Object.entries(MARKET_ISO3).map(([market,iso])=>[iso,market]));
+function marketFromGeoFeature(f){
+  const p=f&&f.properties||{};
+  const iso=String(p.iso_a3||p.ISO_A3||p.ADM0_ISO||p.ADM0_A3||"").toUpperCase();
+  /* FIX: when a feature has an ISO code, trust ONLY the ISO lookup. Overseas territories
+     (French Guiana GUF, Martinique MTQ, Guadeloupe GLP, Reunion REU, Mayotte B22,
+     Caribbean Netherlands NLY ...) share the parent's "name" and used to be painted as the parent. */
+  if(iso) return ISO3_TO_MARKET[iso]||null;
+  const name=p.name||p.NAME||p.ADMIN||"";
+  const aliases={Russia:"Russian Federation","South Korea":"Korea, Republic of (South Korea)","United States":"United States of America"};
+  const candidate=canonMarket(aliases[name]||name);
+  return MARKETS.includes(candidate)?candidate:null;
+}
+
 const DEMOGRAPHICS=["18-24","25-34","35-44","45-54","55-65","65+","Male","Female","Prefer not to say","Single, never married","Living with partner","Married","Separated","Divorced","Widowed","Yes","No","Low","Medium","High","Business owner","C-level executive","Business unit head / Senior management","Middle management","Junior management or entry level executive"];
 const TRIP_TYPES=["LEISURE","BUSINESS","BLEISURE"];
 let FILTER_CONFIG=[
@@ -136,7 +184,7 @@ let FILTER_CONFIG=[
   {value:"Trip Type",label:"Traveler Type",options:()=>TRIP_TYPES,default:[]},
 ];
 /* Marital Status, Children, Companion are now displayed as charts, not filters */
-let DATA, segment="All", currentTab="behaviour", filterDim="Market", activeSelections=[];
+let DATA, segment="All", currentTab="behaviour", activeSentimentTab="overview", filterDim="Market", activeSelections=[];
 let currentJourneyStage="Inspire";
 const filterSelections={};
 const tooltip=d3.select("#tooltip");
@@ -192,6 +240,57 @@ const METRIC_CFG={
   d3.__travelPulseXAxisLabelsHidden = true;
 })();
 
+/* ══ MAP HELPERS: fit-to-width + zoom to selected country / region ═════════ */
+const MAP_FIT_GEOM={type:"MultiPoint",coordinates:[[-180,0],[180,0],[0,80],[0,-57]]};
+/* Natural-Earth projection that fills the FULL width (no side gaps). Poles are cropped. */
+function mapFitWorld(w,padX){
+  padX=padX==null?2:padX;
+  const projection=d3.geoNaturalEarth1().fitWidth(Math.max(100,w-padX*2),MAP_FIT_GEOM);
+  const t=projection.translate(); projection.translate([t[0]+padX,t[1]]);
+  const b=d3.geoPath(projection).bounds(MAP_FIT_GEOM);
+  return {projection,height:Math.ceil(b[1][1])+2};
+}
+/* bounds of a feature using only its significant polygons (ignores far overseas bits) */
+function _mapMainGeometry(f){
+  const g=f&&f.geometry; if(!g) return null;
+  if(g.type!=="MultiPolygon") return f;
+  const sl=r=>Math.abs(r.reduce((s,p,i,a)=>{const n=a[(i+1)%a.length];return s+p[0]*n[1]-n[0]*p[1];},0))/2;
+  const areas=g.coordinates.map(p=>sl(p[0])); const mx=Math.max(...areas);
+  const keep=g.coordinates.filter((p,i)=>areas[i]>=mx*0.04);
+  return {type:"Feature",properties:f.properties,geometry:{type:"MultiPolygon",coordinates:keep}};
+}
+/* zoom the map to a list of features (empty list = reset to world view) */
+function mapZoomToFeatures(svg,path,features,opts){
+  opts=opts||{};
+  const node=svg&&svg.node&&svg.node(); const api=node&&node.__mapZoom; if(!api) return;
+  const {zoom,W,H}=api;
+  if(!features||!features.length){
+    svg.transition().duration(opts.duration==null?650:opts.duration).call(zoom.transform,d3.zoomIdentity); return;
+  }
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  features.forEach(f=>{
+    const mf=_mapMainGeometry(f); if(!mf) return;
+    const b=path.bounds(mf); if(!isFinite(b[0][0])) return;
+    x0=Math.min(x0,b[0][0]); y0=Math.min(y0,b[0][1]); x1=Math.max(x1,b[1][0]); y1=Math.max(y1,b[1][1]);
+  });
+  if(!isFinite(x0)) return;
+  const dx=Math.max(x1-x0,1),dy=Math.max(y1-y0,1),pad=opts.pad==null?0.22:opts.pad;
+  let k=(1-pad)/Math.max(dx/W,dy/H);
+  k=Math.max(1,Math.min(opts.maxK||9,k));
+  let tx=W/2-k*(x0+x1)/2, ty=H/2-k*(y0+y1)/2;
+  tx=Math.min(0,Math.max(W-k*W,tx)); ty=Math.min(0,Math.max(H-k*H,ty));   /* stay inside the map */
+  svg.transition().duration(opts.duration==null?750:opts.duration)
+     .call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(k));
+}
+/* zoom to the countries of the given markets (used for dropdown / region / click selection) */
+function mapZoomToMarkets(svg,path,countries,markets,opts){
+  if(!countries||!countries.features) return;
+  const set=new Set(markets||[]);
+  const feats=set.size?countries.features.filter(f=>{const m=marketFromGeoFeature(f);return m&&set.has(m);}):[];
+  mapZoomToFeatures(svg,path,feats,opts);
+}
+window.mapFitWorld=mapFitWorld; window.mapZoomToFeatures=mapZoomToFeatures; window.mapZoomToMarkets=mapZoomToMarkets;
+
 function attachMapZoomControls(container, svg, zoomLayer){
   const root = typeof container === "string" ? document.querySelector(container) : container;
   if(!root || !svg || !zoomLayer || !d3?.zoom) return;
@@ -203,12 +302,24 @@ function attachMapZoomControls(container, svg, zoomLayer){
   controls.innerHTML = `
     <button type="button" class="map-zoom-btn" data-zoom="in" aria-label="Zoom In" title="Zoom In (+)">+</button>
     <button type="button" class="map-zoom-btn" data-zoom="out" aria-label="Zoom Out" title="Zoom Out (-)">-</button>
+    <button type="button" class="map-zoom-btn" data-zoom="reset" aria-label="Reset view" title="Reset view">&#8634;</button>
   `;
   root.appendChild(controls);
 
+  const vb=(svg.attr("viewBox")||"0 0 800 400").split(/\s+/).map(Number);
+  const W=vb[2],H=vb[3];
   const zoom = d3.zoom()
-    .scaleExtent([1, 6])
-    .on("zoom", event => zoomLayer.attr("transform", event.transform));
+    .scaleExtent([1, 14])
+    .extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])
+    .on("zoom", event => {
+      zoomLayer.attr("transform", event.transform);
+      const k=event.transform.k;               /* keep marker dots the same size while zooming */
+      zoomLayer.selectAll(".map-dot").each(function(){
+        const t=this.__t||(this.__t=this.getAttribute("transform")||"");
+        this.setAttribute("transform",t+" scale("+(1/k)+")");
+      });
+    });
+  svg.node().__mapZoom={zoom,W,H};
 
   svg.call(zoom).on("dblclick.zoom", null);
   controls.addEventListener("click", event => {
@@ -216,6 +327,7 @@ function attachMapZoomControls(container, svg, zoomLayer){
     if(!btn) return;
     event.preventDefault();
     event.stopPropagation();
+    if(btn.dataset.zoom==="reset"){ svg.transition().duration(450).call(zoom.transform,d3.zoomIdentity); return; }
     const factor = btn.dataset.zoom === "in" ? 1.25 : 0.8;
     svg.transition().duration(220).call(zoom.scaleBy, factor);
   });
@@ -279,11 +391,11 @@ function loadScriptOnce(src) {
 function ensureOptionalScriptsForTab(tabName) {
   const jobs = [];
   if (tabName === "overview") {
-    jobs.push(loadScriptOnce("sentiment-engine.js?v=20261001_v3"));
+    jobs.push(loadScriptOnce("sentiment-engine.js?v=20261007_v4"));
     jobs.push(loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js")
       .then(() => loadScriptOnce("enhancement.js?v=20260928_v47")));
   } else if (tabName === "destination") {
-    jobs.push(loadScriptOnce("dest-sentiment-engine.js?v=20261001_v3"));
+    jobs.push(loadScriptOnce("dest-sentiment-engine.js?v=20261007_v7"));
   } else if (tabName === "social") {
     jobs.push(loadScriptOnce("enhancement.js?v=20260928_v47"));
   }
@@ -464,7 +576,7 @@ loadManifestAndBootstrap();
 
 function loadWorld(){
   if(worldPromise)return worldPromise;
-  worldPromise=fetch("world.geojson?v=20260928").then(r=>r.ok?r.json():null).catch(()=>null);
+  worldPromise=fetch("world.geojson?v=20261007b").then(r=>r.ok?r.json():null).catch(()=>null);
   worldPromise.then(w=>{WORLD=w; if(currentTab!=="social")renderActive();});
   return worldPromise;
 }
@@ -598,7 +710,7 @@ function selectedHotelSentimentMarket(){
 }
 
 function mergeSentimentMarkets(data, selectedMarkets, itemKey, topKey){
-  const chosen=(selectedMarkets||[]).map(m=>data.markets?.[m]).filter(Boolean);
+  const chosen=(selectedMarkets||[]).map(m=>mktLookup(data.markets,m)).filter(Boolean);
   if(!chosen.length) return null;
   const summary={positive:0,neutral:0,negative:0,total:0,score:null};
   const byItem={};
@@ -700,7 +812,7 @@ function socialRowsForCurrentMarketSelection(){
   const selected=filterSelections.Market||[];
   if(!selected.length) return rows;
   const selectedSet=new Set(selected);
-  return rows.filter(r=>selectedSet.has(MARKET_ALIASES[clean(r.sourceMarket)]||clean(r.sourceMarket)));
+  return rows.filter(r=>selectedSet.has(canonMarket(clean(r.sourceMarket))));
 }
 function buildBrandPeriodStats(name){
   const stats=emptyPeriodStats();
@@ -865,7 +977,7 @@ function maybeLoadPeriodSentimentForActiveTab(){
 
 function hotelSentimentSelection(data){
   const selected=filterSelections.Market||[];
-  if(selected.length===1&&data.markets?.[selected[0]]) return {market:selected[0],summary:data.markets[selected[0]]};
+  if(selected.length===1&&mktLookup(data.markets,selected[0])) return {market:selected[0],summary:mktLookup(data.markets,selected[0])};
   if(selected.length>1){
     const summary=mergeSentimentMarkets(data,selected,"hotel","topHotels");
     if(summary) return {market:`${selected.length} selected markets`,summary};
@@ -902,8 +1014,9 @@ function renderHotelSentimentMap(data){
     return;
   }
 
-  const w=Math.max(680,el.clientWidth||760);
-  const h=Math.max(500,el.clientHeight||520);
+  const w=Math.max(680,(el.clientWidth||760)-36);     /* minus the container's side padding */
+  const _fit=mapFitWorld(w);
+  const h=_fit.height+10;
   d3.select(sel).selectAll("*").remove();
 
   const svg=d3.select(sel).append("svg")
@@ -915,44 +1028,45 @@ function renderHotelSentimentMap(data){
   if(WORLD.type==="FeatureCollection") countries=WORLD;
   else if(window.topojson&&WORLD.objects?.countries) countries=topojson.feature(WORLD,WORLD.objects.countries);
 
-  const projection=d3.geoNaturalEarth1();
-  if(countries?.features?.length){
-    const fitFeatures=countries.features.filter(f=>f.properties?.name!=="Antarctica");
-    projection.fitExtent([[18,22],[w-18,h-56]],{type:"FeatureCollection",features:fitFeatures});
-  } else {
-    projection.scale(Math.min(w/6.2,h/3.05)).translate([w/2,h/2+2]);
-  }
+  const projection=_fit.projection;
 
   const path=d3.geoPath(projection);
+  svg.insert("path", ":first-child")
+    .datum({type:"Sphere"})
+    .attr("d", d3.geoPath(projection))
+    .attr("fill", "#f7f5fb")
+    .attr("stroke", "none")
+    .style("pointer-events", "none");
   const g=svg.append("g");
   attachMapZoomControls(el, svg, g);
+  mapZoomToMarkets(svg,path,countries,filterSelections.Market||[]);
   const GEO_NAME={"Russian Federation":"Russia","Korea, Republic of (South Korea)":"South Korea"};
   const geoName=m=>GEO_NAME[m]||m;
-  const TINY=new Set(["Bahrain","Singapore"]);
+  const TINY=new Set(); // Bahrain and Singapore are real GeoJSON polygons
   const selectedMarkets=filterSelections.Market||[];
   const selectedSet=new Set(selectedMarkets);
   const hasMarketSelection=selectedMarkets.length>0;
-  const SELECTED_MARKET_FILL="#f2a45a";
-  const SELECTED_MARKET_STROKE="#8b4d2b";
-  const marketOpacity=market=>!hasMarketSelection||selectedSet.has(market)?1:.18;
+  const SELECTED_MARKET_FILL=null; // preserve metric/sentiment fill
+  const SELECTED_MARKET_STROKE="#530095";
+  const marketOpacity=market=>!hasMarketSelection||selectedSet.has(market)?1:.4;
   const marketFilter=market=>{
     if(!hasMarketSelection) return null;
-    return selectedSet.has(market) ? "drop-shadow(0 4px 9px rgba(139,77,43,.42))" : "grayscale(.35) blur(.25px)";
+    return selectedSet.has(market) ? null : null;
   };
   const geoToMarket={};
   MARKETS.forEach(m=>{ if(!TINY.has(m)) geoToMarket[geoName(m)]=m; });
 
   function marketScore(market){
-    return data.markets?.[market]?.score;
+    return mktLookup(data.markets,market)?.score;
   }
   function marketTotal(market){
-    return data.markets?.[market]?.total||0;
+    return mktLookup(data.markets,market)?.total||0;
   }
   function marketFill(market){
     const score=marketScore(market);
     return Number.isFinite(score)?hotelSentimentColor(score):"#ddd8ee";
   }
-  const displayedMarketFill=market=>hasMarketSelection&&selectedSet.has(market)?SELECTED_MARKET_FILL:marketFill(market);
+  const displayedMarketFill=market=>marketFill(market);
   function polyArea(feat){
     const geom=feat.geometry;
     if(!geom) return 0;
@@ -964,19 +1078,19 @@ function renderHotelSentimentMap(data){
 
   if(countries?.features?.length){
     const allSorted=[...countries.features].sort((a,b)=>polyArea(b)-polyArea(a));
-    const marketFeatures=countries.features.filter(f=>geoToMarket[f.properties.name]).sort((a,b)=>polyArea(b)-polyArea(a));
+    const marketFeatures=countries.features.filter(f=>marketFromGeoFeature(f)).sort((a,b)=>polyArea(b)-polyArea(a));
 
     g.append("g").attr("class","world-land").selectAll("path")
       .data(allSorted).join("path")
       .attr("d",path)
       .attr("fill",f=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         if(!market) return "#e8e2f4";
         return displayedMarketFill(market);
       })
       .attr("opacity",f=>{
-        const market=geoToMarket[f.properties.name];
-        return market ? marketOpacity(market) : (hasMarketSelection ? .28 : 1);
+        const market=marketFromGeoFeature(f);
+        return market ? marketOpacity(market) : (hasMarketSelection ? .7 : 1);
       })
       .attr("stroke","#fff").attr("stroke-width",0.3)
       .style("pointer-events","none");
@@ -985,17 +1099,17 @@ function renderHotelSentimentMap(data){
       .data(marketFeatures).join("path")
       .attr("d",path)
       .attr("fill",f=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         return displayedMarketFill(market);
       })
-      .attr("opacity",f=>marketOpacity(geoToMarket[f.properties.name]))
-      .attr("stroke",f=>selectedSet.has(geoToMarket[f.properties.name])?SELECTED_MARKET_STROKE:"#fff")
-      .attr("stroke-width",f=>selectedSet.has(geoToMarket[f.properties.name])?2.8:0.6)
+      .attr("opacity",f=>marketOpacity(marketFromGeoFeature(f)))
+      .attr("stroke",f=>selectedSet.has(marketFromGeoFeature(f))?SELECTED_MARKET_STROKE:"#fff")
+      .attr("stroke-width",f=>selectedSet.has(marketFromGeoFeature(f))?4.4:0.6)
       .style("cursor","pointer")
-      .style("filter",f=>marketFilter(geoToMarket[f.properties.name]))
-      .on("click",(e,f)=>{const market=geoToMarket[f.properties.name]; if(market) selectMarketFromMap(market);})
+      .style("filter",f=>marketFilter(marketFromGeoFeature(f)))
+      .on("click",(e,f)=>{const market=marketFromGeoFeature(f); if(market) selectMarketFromMap(market);})
       .on("mousemove",(e,f)=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         const score=marketScore(market);
         if(!Number.isFinite(score)){hideTip();return;}
         showTip(e,{label:market,value:`Score: ${hotelSentimentScoreText(score)}  (n=${marketTotal(market).toLocaleString()})`},true);
@@ -1006,13 +1120,13 @@ function renderHotelSentimentMap(data){
       .data(allSorted).join("path")
       .attr("d",path)
       .attr("fill","none")
-      .attr("stroke","rgba(255,255,255,0.6)")
+      .attr("stroke","none")
       .attr("stroke-width",0.4)
       .style("pointer-events","none");
   }
 
-  const tinyList=MARKETS.filter(m=>TINY.has(m)&&MARKET_COORDS[m]);
-  g.append("g").selectAll("g").data(tinyList).join("g")
+  const tinyList=["Bahrain","Singapore"].filter(m=>MARKET_COORDS[m]); // marker dots so these 1-2px countries are visible
+  g.append("g").selectAll("g").data(tinyList).join("g").attr("class","map-dot")
     .attr("transform",m=>{const p=projection(MARKET_COORDS[m]);return`translate(${p[0]},${p[1]})`;})
     .style("cursor","pointer")
     .attr("opacity",m=>marketOpacity(m))
@@ -1163,7 +1277,7 @@ function selectedAirlineSentimentMarket(){
 
 function airlineSentimentSelection(data){
   const selected=filterSelections.Market||[];
-  if(selected.length===1&&data.markets?.[selected[0]]) return {market:selected[0],summary:data.markets[selected[0]]};
+  if(selected.length===1&&mktLookup(data.markets,selected[0])) return {market:selected[0],summary:mktLookup(data.markets,selected[0])};
   if(selected.length>1){
     const summary=mergeSentimentMarkets(data,selected,"airline","topAirlines");
     if(summary) return {market:`${selected.length} selected markets`,summary};
@@ -1200,8 +1314,9 @@ function renderAirlineSentimentMap(data){
     return;
   }
 
-  const w=Math.max(680,el.clientWidth||760);
-  const h=Math.max(500,el.clientHeight||520);
+  const w=Math.max(680,(el.clientWidth||760)-36);     /* minus the container's side padding */
+  const _fit=mapFitWorld(w);
+  const h=_fit.height+10;
   d3.select(sel).selectAll("*").remove();
 
   const svg=d3.select(sel).append("svg")
@@ -1213,40 +1328,41 @@ function renderAirlineSentimentMap(data){
   if(WORLD.type==="FeatureCollection") countries=WORLD;
   else if(window.topojson&&WORLD.objects?.countries) countries=topojson.feature(WORLD,WORLD.objects.countries);
 
-  const projection=d3.geoNaturalEarth1();
-  if(countries?.features?.length){
-    const fitFeatures=countries.features.filter(f=>f.properties?.name!=="Antarctica");
-    projection.fitExtent([[18,22],[w-18,h-56]],{type:"FeatureCollection",features:fitFeatures});
-  } else {
-    projection.scale(Math.min(w/6.2,h/3.05)).translate([w/2,h/2+2]);
-  }
+  const projection=_fit.projection;
 
   const path=d3.geoPath(projection);
+  svg.insert("path", ":first-child")
+    .datum({type:"Sphere"})
+    .attr("d", d3.geoPath(projection))
+    .attr("fill", "#f7f5fb")
+    .attr("stroke", "none")
+    .style("pointer-events", "none");
   const g=svg.append("g");
   attachMapZoomControls(el, svg, g);
+  mapZoomToMarkets(svg,path,countries,filterSelections.Market||[]);
   const GEO_NAME={"Russian Federation":"Russia","Korea, Republic of (South Korea)":"South Korea"};
   const geoName=m=>GEO_NAME[m]||m;
-  const TINY=new Set(["Bahrain","Singapore"]);
+  const TINY=new Set(); // Bahrain and Singapore are real GeoJSON polygons
   const selectedMarkets=filterSelections.Market||[];
   const selectedSet=new Set(selectedMarkets);
   const hasMarketSelection=selectedMarkets.length>0;
-  const SELECTED_MARKET_FILL="#f2a45a";
-  const SELECTED_MARKET_STROKE="#8b4d2b";
-  const marketOpacity=market=>!hasMarketSelection||selectedSet.has(market)?1:.18;
+  const SELECTED_MARKET_FILL=null; // preserve metric/sentiment fill
+  const SELECTED_MARKET_STROKE="#530095";
+  const marketOpacity=market=>!hasMarketSelection||selectedSet.has(market)?1:.4;
   const marketFilter=market=>{
     if(!hasMarketSelection) return null;
-    return selectedSet.has(market) ? "drop-shadow(0 4px 9px rgba(139,77,43,.42))" : "grayscale(.35) blur(.25px)";
+    return selectedSet.has(market) ? null : null;
   };
   const geoToMarket={};
   MARKETS.forEach(m=>{ if(!TINY.has(m)) geoToMarket[geoName(m)]=m; });
 
-  function marketScore(market){ return data.markets?.[market]?.score; }
-  function marketTotal(market){ return data.markets?.[market]?.total||0; }
+  function marketScore(market){ return mktLookup(data.markets,market)?.score; }
+  function marketTotal(market){ return mktLookup(data.markets,market)?.total||0; }
   function marketFill(market){
     const score=marketScore(market);
     return Number.isFinite(score)?hotelSentimentColor(score):"#ddd8ee";
   }
-  const displayedMarketFill=market=>hasMarketSelection&&selectedSet.has(market)?SELECTED_MARKET_FILL:marketFill(market);
+  const displayedMarketFill=market=>marketFill(market);
   function polyArea(feat){
     const geom=feat.geometry;
     if(!geom) return 0;
@@ -1258,19 +1374,19 @@ function renderAirlineSentimentMap(data){
 
   if(countries?.features?.length){
     const allSorted=[...countries.features].sort((a,b)=>polyArea(b)-polyArea(a));
-    const marketFeatures=countries.features.filter(f=>geoToMarket[f.properties.name]).sort((a,b)=>polyArea(b)-polyArea(a));
+    const marketFeatures=countries.features.filter(f=>marketFromGeoFeature(f)).sort((a,b)=>polyArea(b)-polyArea(a));
 
     g.append("g").attr("class","world-land").selectAll("path")
       .data(allSorted).join("path")
       .attr("d",path)
       .attr("fill",f=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         if(!market) return "#e8e2f4";
         return displayedMarketFill(market);
       })
       .attr("opacity",f=>{
-        const market=geoToMarket[f.properties.name];
-        return market ? marketOpacity(market) : (hasMarketSelection ? .28 : 1);
+        const market=marketFromGeoFeature(f);
+        return market ? marketOpacity(market) : (hasMarketSelection ? .7 : 1);
       })
       .attr("stroke","#fff").attr("stroke-width",0.3)
       .style("pointer-events","none");
@@ -1279,17 +1395,17 @@ function renderAirlineSentimentMap(data){
       .data(marketFeatures).join("path")
       .attr("d",path)
       .attr("fill",f=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         return displayedMarketFill(market);
       })
-      .attr("opacity",f=>marketOpacity(geoToMarket[f.properties.name]))
-      .attr("stroke",f=>selectedSet.has(geoToMarket[f.properties.name])?SELECTED_MARKET_STROKE:"#fff")
-      .attr("stroke-width",f=>selectedSet.has(geoToMarket[f.properties.name])?2.8:0.6)
+      .attr("opacity",f=>marketOpacity(marketFromGeoFeature(f)))
+      .attr("stroke",f=>selectedSet.has(marketFromGeoFeature(f))?SELECTED_MARKET_STROKE:"#fff")
+      .attr("stroke-width",f=>selectedSet.has(marketFromGeoFeature(f))?4.4:0.6)
       .style("cursor","pointer")
-      .style("filter",f=>marketFilter(geoToMarket[f.properties.name]))
-      .on("click",(e,f)=>{const market=geoToMarket[f.properties.name]; if(market) selectMarketFromMap(market);})
+      .style("filter",f=>marketFilter(marketFromGeoFeature(f)))
+      .on("click",(e,f)=>{const market=marketFromGeoFeature(f); if(market) selectMarketFromMap(market);})
       .on("mousemove",(e,f)=>{
-        const market=geoToMarket[f.properties.name];
+        const market=marketFromGeoFeature(f);
         const score=marketScore(market);
         if(!Number.isFinite(score)){hideTip();return;}
         showTip(e,{label:market,value:`Score: ${hotelSentimentScoreText(score)}  (n=${marketTotal(market).toLocaleString()})`},true);
@@ -1300,13 +1416,13 @@ function renderAirlineSentimentMap(data){
       .data(allSorted).join("path")
       .attr("d",path)
       .attr("fill","none")
-      .attr("stroke","rgba(255,255,255,0.6)")
+      .attr("stroke","none")
       .attr("stroke-width",0.4)
       .style("pointer-events","none");
   }
 
-  const tinyList=MARKETS.filter(m=>TINY.has(m)&&MARKET_COORDS[m]);
-  g.append("g").selectAll("g").data(tinyList).join("g")
+  const tinyList=["Bahrain","Singapore"].filter(m=>MARKET_COORDS[m]); // marker dots so these 1-2px countries are visible
+  g.append("g").selectAll("g").data(tinyList).join("g").attr("class","map-dot")
     .attr("transform",m=>{const p=projection(MARKET_COORDS[m]);return`translate(${p[0]},${p[1]})`;})
     .style("cursor","pointer")
     .attr("opacity",m=>marketOpacity(m))
@@ -1514,6 +1630,7 @@ function init(){
   d3.select("#resetBtn").on("click",resetFilters);
   d3.select("#chipClear").on("click",resetFilters);
   d3.selectAll(".tab").on("click",function(){switchTab(d3.select(this).attr("data-tab"));});
+  d3.selectAll(".sentiment-subtab").on("click",function(){switchTab(d3.select(this).attr("data-sentiment-tab"));});
   d3.select(document).on("click",closeMenus);
   setFilterDim("Market");
   addExportButtons();
@@ -1552,15 +1669,21 @@ function updateSegmentBase(){
 }
 function switchTab(name){
   return runDashboardUpdate(()=>{
+    if(name==="travel-sentiment")name=activeSentimentTab;
+    const sentimentView=name==="overview"||name==="destination";
+    if(sentimentView)activeSentimentTab=name;
     currentTab=name;
     if(DATA){buildFilterControlsCascade();}
     d3.select("#filtersBar").classed("airline-filter-station",name==="airline").classed("pov-filter-station",name==="airline"||name==="hotel"||name==="destination");
+    d3.select("#travelSentimentTabs").attr("hidden",sentimentView?null:true);
+    d3.selectAll(".sentiment-subtab").classed("active",function(){return d3.select(this).attr("data-sentiment-tab")===name;})
+      .attr("aria-selected",function(){return String(d3.select(this).attr("data-sentiment-tab")===name);});
     d3.select("body")
       .classed("airline-active",name==="airline")
       .classed("hotel-active",name==="hotel")
       .classed("destination-active",name==="destination")
       .classed("segments-active",name==="segments");
-    d3.selectAll(".tab").classed("active",function(){return d3.select(this).attr("data-tab")===name;});
+    d3.selectAll(".tab").classed("active",function(){return d3.select(this).attr("data-tab")===(sentimentView?"travel-sentiment":name);});
     d3.selectAll(".tab-panel").each(function(){
       const el=d3.select(this); el.attr("hidden", el.attr("data-panel")===name?null:true);
     });
@@ -1717,10 +1840,10 @@ function renderJourneyFlow(){
   const bookPct    = n ? fmt(bookCount / n) : "40%";
 
   const stages=[
-    {key:"Inspire",  label:"Inspire",  sub:"Not yet planning",        pct:inspirePct, tone:"purple"},
-    {key:"Plan",     label:"Plan",     sub:"Researching or Itinerary",  pct:planPct,    tone:"gray"},
-    {key:"Book",     label:"Book",     sub:"Arranged or booked",        pct:bookPct,    tone:"blue"},
-    {key:"On-Trip",  label:"During trip", sub:"Experience",            pct:"",         tone:"light"}
+    {key:"Inspire",  label:"Inspire",  pct:inspirePct, tone:"purple"},
+    {key:"Plan",     label:"Plan",     pct:planPct,    tone:"gray"},
+    {key:"Book",     label:"Book",     pct:bookPct,    tone:"blue"},
+    {key:"On-Trip",  label:"During trip", pct:"",     tone:"light"}
   ];
 
   const panelMap={
@@ -1751,7 +1874,6 @@ function renderJourneyFlow(){
       <span class="journey-step-icon">${STAGE_ICONS[d.key]||""}</span>
       <span class="journey-step-copy">
         <span class="journey-step-label">${d.label}</span>
-        <span class="journey-meta">${d.sub}</span>
       </span>
       ${d.pct?`<span class="journey-pct">${d.pct}</span>`:""}
     `)
@@ -2185,7 +2307,7 @@ function renderSegments(){
           <div class="segment-photo-caption">
             <span>SEGMENT</span>
             <h3>${escapeHtml(label)}</h3>
-            <strong>${cohortRows.length.toLocaleString()} respondents</strong>
+            <strong>${cohortRows.length.toLocaleString()} respondents${lowSampleBadgeMarkup(cohortRows.length)}</strong>
           </div>
         </div>
       </article>
@@ -2212,7 +2334,7 @@ function renderSegments(){
       const cohortRows=rows.filter(row=>clean(row[config.dimension])===label);
       const answeredRows=cohortRows.map(row=>answersForRow(row,question)).filter(answers=>answers.length);
       const questionBase=answeredRows.length!==cohortRows.length
-        ?`<p class="segment-question-respondents">${answeredRows.length.toLocaleString()} respondents answered</p>`
+        ?`<p class="segment-question-respondents">${answeredRows.length.toLocaleString()} respondents answered${lowSampleBadgeMarkup(answeredRows.length)}</p>`
         :"";
       let rankedResponses;
       if(question.key==="Q3"){
@@ -2409,15 +2531,16 @@ function renderJourneyStageCharts(stageKey) {
         max: Math.min(1, (destData[0]?.value || 0.5) * 1.25),
         valueFormat: oneDecimalPct,
         axisFormat: oneDecimalPct,
-        labelWidth: 190,
-        maxLabelChars: 32
+        labelWidth: 230,
+        maxLabelChars: 34,
+        showCountryFlags: true
       });
     }
 
     // 3. Q12 Key Experiences Sought (Horizontal Bar Chart)
-    const expData = q("experiences").filter(d=>d.value>0.001).slice(0, 7)
+    const expData = q("experiences")
       .map(d=>({ ...d, displayLabel: shortExperienceLabel(d.label), filterLabel: d.label }));
-    horizontalBars("#experienceChart", expData, { height: 270, max: Math.min(1, (expData[0]?.value || 0.5) * 1.25), labelWidth: 230, maxLabelChars: 34, labelFontSize: 12 });
+    horizontalBars("#experienceChart", expData, { height: Math.max(270, expData.length * 34 + 55), max: Math.min(1, (d3.max(expData, d=>d.value) || 0.5) * 1.25), labelWidth: 230, maxLabelChars: 34, labelFontSize: 12 });
 
     // 4. Q7 Discovery Channels
     horizontalBars("#infoChart", channelDisplayRows(q("infoChannels").slice(0, 7)), { height: 260, max: 0.75 });
@@ -2481,33 +2604,31 @@ function renderJourneyStageCharts(stageKey) {
         displayLabel:item.label.replace(/â€“|–/g,"-").replace(/(\d)-(\d)/g,"$1–$2")
       }))
       .sort((a,b)=>(tripDurationOrder.get(a.label)??Infinity)-(tripDurationOrder.get(b.label)??Infinity));
-    behaviourDemographicPie3D("#planTripDurationPie",tripDurationData,{height:360,category:"trip duration"});
+    const oneDecimalShare=d=>d3.format(".1%")(d.value);
+    horizontalBars("#planTripDurationPie",tripDurationData,{height:300,max:1,labelWidth:150,preserveOrder:true,gradient:true,valueFormat:oneDecimalShare,axisFormat:d3.format(".0%")});
 
-    const planTimingDisplayLabel = label => clean(label)
-      .replace(/â€“|–/g, "-")
-      .replace(/\s+before the trip$/i, "")
-      .replace(/\s+from now$/i, "")
-      .replace(/\bmonths?\b/gi, "mo")
-      .replace(/^Less than 1 mo$/i, "<1 mo")
-      .replace(/^1 year or more$/i, "1+ year")
-      .replace(/^Canâ€™t say$/i, "Can't say");
+    const planTimingDisplayLabel = label => displayLabelText(label,"timing");
     const bookingLeadTimeData = countField(rows, "Q6")
       .map(item => ({
         ...item,
         displayLabel:planTimingDisplayLabel(item.label).replace(/(\d)-(\d)/g,"$1–$2")
       }));
-    const bookingLeadTimeOrder=new Map(["<1 mo","1–3 mo","3–6 mo","6–9 mo","9–12 mo","1+ year"].map((label,index)=>[label,index]));
+    const bookingLeadTimeOrder=new Map(["<1 month","1–3 months","3–6 months","6–9 months","9–12 months","1+ year"].map((label,index)=>[label,index]));
     bookingLeadTimeData.sort((a,b)=>(bookingLeadTimeOrder.get(a.displayLabel)??Infinity)-(bookingLeadTimeOrder.get(b.displayLabel)??Infinity));
     const travelPeriodData = countField(rows, "Q6a")
       .map(item => ({ ...item, displayLabel: planTimingDisplayLabel(item.label) }));
-    behaviourDemographicPie3D("#planBookingLeadTimePie",bookingLeadTimeData,{height:360,category:"booking lead time"});
-    behaviourDemographicPie3D("#planTravelPeriodPie",travelPeriodData,{height:360,category:"planned travel period"});
+    const travelPeriodOrder=new Map(["1–3 months","4–6 months","7–9 months","10–12 months","Can’t say","Can't say"].map((label,index)=>[label.toLowerCase(),index]));
+    travelPeriodData.sort((a,b)=>(travelPeriodOrder.get(a.displayLabel.toLowerCase())??Infinity)-(travelPeriodOrder.get(b.displayLabel.toLowerCase())??Infinity));
+    const bookingLeadTimeRibbonData=bookingLeadTimeData.map(item=>({...item,label:item.displayLabel||item.label,filterLabel:item.label}));
+    window.ribbonChart("#planBookingLeadTimePie",bookingLeadTimeRibbonData,{header:"BOOKING WINDOW",filterKey:"Q6"});
+    horizontalBars("#planTravelPeriodPie",travelPeriodData,{height:300,max:1,labelWidth:150,preserveOrder:true,gradient:true,valueFormat:oneDecimalShare,axisFormat:d3.format(".0%")});
 
     // A. Key Channels of Collecting Information (Q7)
     horizontalBars("#planInfoChart", channelDisplayRows(q("infoChannels").slice(0, 7)), { height: 260, max: 0.75 });
 
     // B. Key Trip Considerations (Q9)
-    horizontalBars("#planDecisionChart", q("decisionFactors").slice(0, 7), { height: 260, max: 0.85, maxLabelChars: 34 });
+    const decisionData=q("decisionFactors");
+    horizontalBars("#planDecisionChart", decisionData, { height: Math.max(260, decisionData.length * 34 + 55), max: 0.85, maxLabelChars: 34 });
 
     // C. Budget Change Donut (Q10) & Interactive Reasons (Q11 / Q11a)
     let decCnt = 0, sameCnt = 0, incCnt = 0;
@@ -2541,9 +2662,12 @@ function renderJourneyStageCharts(stageKey) {
 
     const segmentBudgetRows=rowsIgnoringChartFilters(["Segment_Budget","BudgetChangeMode"]);
     const segmentBudgetData=countField(segmentBudgetRows,"Segment_Budget");
-    behaviourDemographicPie3D("#planSegmentBudgetPie",segmentBudgetData,{
+    const budgetSegmentOrder=new Map(["Budget Travelers","Premium Travelers","Luxury Travelers"].map((label,index)=>[label,index]));
+    segmentBudgetData.sort((a,b)=>(budgetSegmentOrder.get(a.label)??Infinity)-(budgetSegmentOrder.get(b.label)??Infinity));
+    window.stackedShareBar("#planSegmentBudgetPie",segmentBudgetData,{
       selected:chartFilters.Segment_Budget||"",
       category:"budget segment",
+      colors:["#713CAC","#00A99E","#F7A83B"],
       onClick:item=>{
         runDashboardUpdate(()=>{
           if(chartFilters.Segment_Budget===item.label) delete chartFilters.Segment_Budget;
@@ -2989,7 +3113,12 @@ function renderPreferenceBars(containerId,rows,fields){
   });
   const answered=Array.from(counts.values()).reduce((sum,count)=>sum+count,0);
   const items=Array.from(counts,([label,count])=>({label,count,value:answered?count/answered:0,total:answered}))
-    .sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
+    .sort((a,b)=>{
+      const aIsOthers=displayLabelText(a.label).trim().toLowerCase()==="others";
+      const bIsOthers=displayLabelText(b.label).trim().toLowerCase()==="others";
+      if(aIsOthers!==bIsOthers)return aIsOthers?1:-1;
+      return b.count-a.count||a.label.localeCompare(b.label);
+    });
   const root=d3.select(el);
   root.selectAll("*").remove();
   if(!items.length){
@@ -3116,9 +3245,12 @@ function renderAirlineComprehensive(){
     });
   })();
 
-  /* ── 4. SLIDE 1: PREFERRED AIRLINE CHANGE (Q14 Paired Bars) ──────── */
+  /* ── 4. SLIDE 1: PREFERRED AIRLINE (Q14) ───────────────────────── */
   (function renderCarrierChange(){
-    renderPreferenceBars("carrierChangeChart",activeRows(),["airlineCarrier","Q14"]);
+    const carrierData=q("airlineCarrier");
+    horizontalBars("#carrierChangeChart",carrierData,{
+      height:Math.max(280,carrierData.length*34+55),labelWidth:230,showAirlineLogos:true,othersLast:true
+    });
   })();
 
   /* ── 5. SLIDE 1: STRATEGIES THAT WOULD DRIVE AIRLINE BOOKING (Q17) ── */
@@ -3339,7 +3471,13 @@ function renderAirlineComprehensive(){
 
   /* ── 10. EXISTING BOTTOM CHARTS ──────────────────────────────────── */
   horizontalBars("#airlineConsiderChart", q("airlineConsiderations"), { height: 300, max: 0.45 });
-  donut("#cabinChart", specificQ("cabinClass", filterDim === "Class" && currentTab === "airline" ? activeSelections : []), "Cabin", filterDim === "Class" && currentTab === "airline" ? activeSelections : []);
+  const cabinClassOrder=["Economy class","Premium economy","Business class","First class"];
+  const cabinClassData=specificQ("cabinClass", filterDim === "Class" && currentTab === "airline" ? activeSelections : [])
+    .sort((a,b)=>{
+      const rankA=cabinClassOrder.indexOf(a.label),rankB=cabinClassOrder.indexOf(b.label);
+      return (rankA<0?cabinClassOrder.length:rankA)-(rankB<0?cabinClassOrder.length:rankB);
+    });
+  donut("#cabinChart", cabinClassData, "Cabin", filterDim === "Class" && currentTab === "airline" ? activeSelections : []);
   renderAirlineInsight();
   scheduleTabQuestionExplorer("airline");
 }
@@ -3872,16 +4010,19 @@ function renderDestinationComprehensive() {
   }
 
   /* ── 1. RENDER DESTINATION WORLD HEAT MAP (Matching Overview / Source Map) ── */
-  function getDestIdForCountryName(name) {
+  /* FIX: territories / islands that must NOT inherit a parent region colour (by ISO) */
+  const DEST_NON_REGION_ISO = new Set(["GUF","MTQ","GLP","REU","B22","NLY","SJM","BVT","CCK","CXR","B69","SGS","VIR","UMI","VGB","TCA"]);
+  function getDestIdForCountryName(name, iso) {
+    if (iso && DEST_NON_REGION_ISO.has(String(iso).toUpperCase())) return null;
     const n = String(name || "").toLowerCase();
-    if (n.includes("united states") || n.includes("canada") || n === "usa" || n.includes("greenland")) return "us_can";
+    if (n === "united states of america" || n.includes("canada") || n === "usa" || n.includes("greenland")) return "us_can";
     if (n.includes("russia") || n.includes("kazakhstan") || n.includes("uzbekistan") || n.includes("turkmenistan") || n.includes("kyrgyzstan") || n.includes("tajikistan")) return "russia";
-    if (n.includes("india") || n.includes("pakistan") || n.includes("bangladesh") || n.includes("sri lanka") || n.includes("nepal") || n.includes("bhutan") || n.includes("maldives") || n.includes("afghanistan") || n.includes("saudi") || n.includes("arab emirates") || n.includes("uae") || n.includes("qatar") || n.includes("kuwait") || n.includes("oman") || n.includes("yemen") || n.includes("iraq") || n.includes("iran") || n.includes("jordan") || n.includes("israel") || n.includes("lebanon") || n.includes("syria") || n.includes("palestine")) return "india";
+    if (n === "india" || n.includes("pakistan") || n.includes("bangladesh") || n.includes("sri lanka") || n.includes("nepal") || n.includes("bhutan") || n.includes("maldives") || n.includes("afghanistan") || n.includes("saudi") || n.includes("arab emirates") || n.includes("uae") || n.includes("qatar") || n.includes("kuwait") || n === "oman" || n.includes("yemen") || n.includes("iraq") || n.includes("iran") || n.includes("jordan") || n.includes("israel") || n.includes("lebanon") || n.includes("syria") || n.includes("palestine")) return "india";
     if (n.includes("china") || n.includes("japan") || n.includes("korea") || n.includes("taiwan") || n.includes("hong kong") || n.includes("singapore") || n.includes("thailand") || n.includes("indonesia") || n.includes("malaysia") || n.includes("vietnam") || n.includes("philippines") || n.includes("cambodia") || n.includes("laos") || n.includes("myanmar") || n.includes("mongolia") || n.includes("brunei") || n.includes("timor")) return "e_asia";
     if (n.includes("australia") || n.includes("new zealand") || n.includes("fiji") || n.includes("papua new guinea") || n.includes("solomon") || n.includes("vanuatu") || n.includes("new caledonia")) return "oceania";
     if (n.includes("brazil") || n.includes("mexico") || n.includes("argentina") || n.includes("colombia") || n.includes("peru") || n.includes("chile") || n.includes("ecuador") || n.includes("bolivia") || n.includes("paraguay") || n.includes("uruguay") || n.includes("venezuela") || n.includes("guyana") || n.includes("suriname") || n.includes("panama") || n.includes("costa rica") || n.includes("nicaragua") || n.includes("honduras") || n.includes("el salvador") || n.includes("guatemala") || n.includes("cuba") || n.includes("haiti") || n.includes("dominican") || n.includes("jamaica") || n.includes("bahamas") || n.includes("belize") || n.includes("puerto rico") || n.includes("trinidad") || n.includes("falkland")) return "latam";
     if (n.includes("south africa") || n.includes("egypt") || n.includes("morocco") || n.includes("kenya") || n.includes("tanzania") || n.includes("nigeria") || n.includes("algeria") || n.includes("tunisia") || n.includes("ethiopia") || n.includes("ghana") || n.includes("uganda") || n.includes("sudan") || n.includes("angola") || n.includes("mozambique") || n.includes("madagascar") || n.includes("cameroon") || n.includes("ivory coast") || n.includes("côte d'ivoire") || n.includes("senegal") || n.includes("zimbabwe") || n.includes("zambia") || n.includes("namibia") || n.includes("botswana") || n.includes("mali") || n.includes("niger") || n.includes("chad") || n.includes("somalia") || n.includes("congo") || n.includes("gabon") || n.includes("libya") || n.includes("mauritania") || n.includes("w. sahara") || n.includes("lesotho") || n.includes("benin") || n.includes("togo") || n.includes("guinea") || n.includes("liberia") || n.includes("sierra leone") || n.includes("burkina") || n.includes("central african") || n.includes("malawi") || n.includes("eswatini") || n.includes("burundi") || n.includes("gambia") || n.includes("djibouti") || n.includes("rwanda") || n.includes("eritrea")) return "africa";
-    if (n.includes("united kingdom") || n.includes("france") || n.includes("germany") || n.includes("italy") || n.includes("spain") || n.includes("portugal") || n.includes("netherlands") || n.includes("belgium") || n.includes("switzerland") || n.includes("austria") || n.includes("sweden") || n.includes("norway") || n.includes("finland") || n.includes("denmark") || n.includes("poland") || n.includes("czech") || n.includes("slovakia") || n.includes("hungary") || n.includes("romania") || n.includes("bulgaria") || n.includes("greece") || n.includes("ireland") || n.includes("iceland") || n.includes("croatia") || n.includes("serbia") || n.includes("bosnia") || n.includes("slovenia") || n.includes("albania") || n.includes("macedonia") || n.includes("montenegro") || n.includes("estonia") || n.includes("latvia") || n.includes("lithuania") || n.includes("belarus") || n.includes("ukraine") || n.includes("moldova") || n.includes("turkey") || n.includes("georgia") || n.includes("armenia") || n.includes("azerbaijan") || n.includes("cyprus") || n.includes("luxembourg") || n.includes("kosovo")) return "europe";
+    if (n.includes("united kingdom") || n.includes("france") || n.includes("germany") || n.includes("italy") || n.includes("spain") || n.includes("portugal") || n.includes("netherlands") || n.includes("belgium") || n.includes("switzerland") || n.includes("austria") || n.includes("sweden") || n.includes("norway") || n.includes("finland") || n.includes("denmark") || n.includes("poland") || n.includes("czech") || n.includes("slovakia") || n.includes("hungary") || n.includes("romania") || n.includes("bulgaria") || n.includes("greece") || n.includes("ireland") || n.includes("iceland") || n.includes("croatia") || n.includes("serbia") || n.includes("bosnia") || n.includes("slovenia") || n.includes("albania") || n.includes("macedonia") || n.includes("montenegro") || n.includes("estonia") || n.includes("latvia") || n.includes("lithuania") || n.includes("belarus") || n.includes("ukraine") || n.includes("moldova") || n.includes("turkey") || n === "georgia" || n.includes("armenia") || n.includes("azerbaijan") || n.includes("cyprus") || n.includes("luxembourg") || n.includes("kosovo")) return "europe";
     return null;
   }
 
@@ -3896,7 +4037,7 @@ function renderDestinationComprehensive() {
     "oceania": [134, -25]
   };
 
-  const HEAT5 = ["#f7eadc", "#efd4bd", "#e7b985", "#d7904d", "#a95b2e"];
+  const HEAT5 = ["#FFF3B0","#FFE066","#FFC21A","#FF9A1F","#F2600C"];
 
   (function renderDestinationMap() {
     const mapEl = document.getElementById("destBlockMap");
@@ -3955,32 +4096,32 @@ function renderDestinationComprehensive() {
       .join("path")
       .attr("d", path)
       .attr("class", d => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         return `dest-geo-country ${did ? "dest-c-" + did : ""}`;
       })
       .attr("fill", d => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         const dest = DEST_DATA.find(x => x.id === did);
         if (!dest) return "#e8e2f4";
         return colorScale(dest.marPos);
       })
       .attr("stroke", d => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         return did === currentSelectedDest?.id ? "#fff" : "#fff";
       })
       .attr("stroke-width", d => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         return did === currentSelectedDest?.id ? 2.5 : 0.35;
       })
-      .style("cursor", d => getDestIdForCountryName(d.properties?.name) ? "pointer" : "default")
+      .style("cursor", d => getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3) ? "pointer" : "default")
       .on("click", (e, d) => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         if (!did) return;
         const dest = DEST_DATA.find(x => x.id === did);
         if (dest) updateDestinationView(dest);
       })
       .on("mousemove", (e, d) => {
-        const did = getDestIdForCountryName(d.properties?.name);
+        const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
         if (!did) return;
         const dest = DEST_DATA.find(x => x.id === did);
         if (!dest) { hideTip(); return; }
@@ -4036,11 +4177,11 @@ function renderDestinationComprehensive() {
       // Update stroke on country paths
       g.selectAll(".dest-geo-country")
         .attr("stroke", d => {
-          const did = getDestIdForCountryName(d.properties?.name);
+          const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
           return did === dest.id ? "#fff" : "#fff";
         })
         .attr("stroke-width", d => {
-          const did = getDestIdForCountryName(d.properties?.name);
+          const did = getDestIdForCountryName(d.properties?.name, d.properties?.iso_a3);
           return did === dest.id ? 2.5 : 0.35;
         });
 
@@ -4369,13 +4510,13 @@ function _mapColorScale(v, mode, heatMetric) {
     return d3.interpolateRgb(cfg.c0, cfg.c100||cfg.c50||"#530095")(t);
   }
   /* TSI heat: 5 buckets matching HEAT5 palette */
-  const HEAT5=["#f7eadc","#efd4bd","#e7b985","#d7904d","#a95b2e"];
+  const HEAT5=["#FFF3B0","#FFE066","#FFC21A","#FF9A1F","#F2600C"];
   return HEAT5[Math.min(4, Math.floor(v * 5))];
 }
 function _mapCacheKey(sel, mode, heatMetric) {
   const fk = JSON.stringify(filterSelections) + '|' + JSON.stringify(chartFilters);
   const worldKey = WORLD ? '1' : '0';  /* cache must miss when WORLD arrives */
-  return sel + '|' + mode + '|' + (heatMetric||'') + '|' + worldKey + '|' + fk;
+  return sel + '|' + mode + '|' + (heatMetric||'') + '|' + worldKey + '|' + currentJourneyStage + '|' + (typeof segment!=='undefined'?segment:'') + '|' + fk;
 }
 function invalidateMapCache() { Object.keys(_mapCache).forEach(k => delete _mapCache[k]); }
 
@@ -4385,7 +4526,8 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
 
   /* ── Dimensions ──────────────────────────────────────────────── */
   const w=Math.max(400,el.clientWidth||500);
-  const h=isOverview?Math.max(300,el.clientHeight||340):Math.max(260,el.clientHeight||280);
+  const _fit=mapFitWorld(w);                         /* FIX: map fills full width, height follows */
+  const h=_fit.height+(isOverview?4:28);             /* + room for the gradient legend */
 
   /* ── Skip full redraw if filter state hasn't changed ────────── */
   const cacheKey = _mapCacheKey(sel, mode, heatMetric);
@@ -4430,19 +4572,23 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
     if(WORLD.type==="FeatureCollection") countries=WORLD;
     else if(window.topojson&&WORLD.objects?.countries) countries=topojson.feature(WORLD,WORLD.objects.countries);
   }
-  const projection=d3.geoNaturalEarth1();
-  if(countries?.features?.length){
-    const fitFeatures=countries.features.filter(f=>f.properties?.name!=="Antarctica");
-    projection.fitExtent([[6,6],[w-6,h-30]],{type:"FeatureCollection",features:fitFeatures});
-  } else projection.scale(Math.min(w/6.4,h/3.1)).translate([w/2,h/2+4]);
+  const projection=_fit.projection;
   const path=d3.geoPath(projection);
+  svg.insert("path", ":first-child")
+    .datum({type:"Sphere"})
+    .attr("d", d3.geoPath(projection))
+    .attr("fill", "#f7f5fb")
+    .attr("stroke", "none")
+    .style("pointer-events", "none");
   const g=svg.append("g");
   attachMapZoomControls(el, svg, g);
+  /* zoom to the selected country / region(s); nothing selected = whole world */
+  mapZoomToMarkets(svg,path,countries,filterSelections.Market||[]);
 
   /* ── GeoJSON name aliases ────────────────────────────────────── */
   const GEO_NAME={"Russian Federation":"Russia","Korea, Republic of (South Korea)":"South Korea"};
   const geoName=m=>GEO_NAME[m]||m;
-  const TINY=new Set(["Bahrain","Singapore"]);
+  const TINY=new Set(); // Bahrain and Singapore are real GeoJSON polygons
 
   /* ── Compute per-market metrics ──────────────────────────────── */
   const rows=rowFilter?activeRows().filter(rowFilter):activeRows();
@@ -4479,7 +4625,7 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
   };
 
   /* ── 5-bucket discrete palette for overview heat map ─────────── */
-  const HEAT5=["#f7eadc","#efd4bd","#e7b985","#d7904d","#a95b2e"];
+  const HEAT5=["#FFF3B0","#FFE066","#FFC21A","#FF9A1F","#F2600C"];
   const HEAT5_LABELS=["Low","Med-Low","Medium","Med-High","High"];
 
   let colorScale;
@@ -4505,19 +4651,19 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
   const selected=filterSelections.Market||[];
   const selectedSet=new Set(selected);
   const hasMarketSelection=selected.length>0;
-  const SELECTED_MARKET_FILL="#f2a45a";
-  const SELECTED_MARKET_STROKE="#8b4d2b";
-  const marketOpacity=mn=>!hasMarketSelection||selectedSet.has(mn)?1:.18;
-  const marketStrokeWidth=mn=>selectedSet.has(mn)?2.8:.6;
+  const SELECTED_MARKET_FILL=null; // preserve metric/sentiment fill
+  const SELECTED_MARKET_STROKE="#530095";
+  const marketOpacity=mn=>!hasMarketSelection||selectedSet.has(mn)?1:.4;
+  const marketStrokeWidth=mn=>selectedSet.has(mn)?4.4:.6;
   const marketFilter=mn=>{
     if(!hasMarketSelection) return null;
-    return selectedSet.has(mn) ? "drop-shadow(0 4px 9px rgba(139,77,43,.42))" : "grayscale(.35) blur(.25px)";
+    return selectedSet.has(mn) ? null : null;
   };
   const marketFill=mn=>{
     const v=getVal(mn);
     return v!==null?colorScale(v):"#ddd8ee";
   };
-  const displayedMarketFill=mn=>hasMarketSelection&&selectedSet.has(mn)?SELECTED_MARKET_FILL:marketFill(mn);
+  const displayedMarketFill=mn=>marketFill(mn);
   const geoToMarket={};
   MARKETS.forEach(m=>{if(!TINY.has(m)) geoToMarket[geoName(m)]=m;});
 
@@ -4542,23 +4688,23 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
 
   const byAreaDesc=(a,b)=>polyArea(b)-polyArea(a);
   const allSorted=[...countries.features].sort(byAreaDesc);
-  const marketFeatures=countries.features.filter(f=>geoToMarket[f.properties.name]).sort(byAreaDesc);
+  const marketFeatures=countries.features.filter(f=>marketFromGeoFeature(f)).sort(byAreaDesc);
 
   /* ── Pass 1: full world base layer ── */
   const worldG=g.append("g").attr("class","world-land");
   worldG.selectAll("path")
-      .data(allSorted).join("path")
+      .data(allSorted.filter(f=>!marketFromGeoFeature(f))).join("path")
       .attr("d",path)
-      .attr("data-market",f=>geoToMarket[f.properties.name]||null)
+      .attr("data-market",f=>marketFromGeoFeature(f)||null)
       .attr("data-geoname",f=>f.properties?.name||null)
       .attr("fill",f=>{
-        const mn=geoToMarket[f.properties.name];
+        const mn=marketFromGeoFeature(f);
         if(!mn) return "#e8e2f4";
         return displayedMarketFill(mn);
       })
       .attr("opacity",f=>{
-        const mn=geoToMarket[f.properties.name];
-        return mn ? marketOpacity(mn) : (hasMarketSelection ? .28 : 1);
+        const mn=marketFromGeoFeature(f);
+        return mn ? marketOpacity(mn) : (hasMarketSelection ? .7 : 1);
       })
       .attr("stroke","#fff").attr("stroke-width",0.3)
       .style("cursor","default").style("pointer-events","none");
@@ -4569,36 +4715,36 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
       .data(marketFeatures).join("path")
       .attr("d",path)
       .attr("fill",f=>{
-        const mn=geoToMarket[f.properties.name];
+        const mn=marketFromGeoFeature(f);
         return displayedMarketFill(mn);
       })
-      .attr("opacity",f=>marketOpacity(geoToMarket[f.properties.name]))
-      .attr("stroke",f=>selectedSet.has(geoToMarket[f.properties.name])?SELECTED_MARKET_STROKE:"#fff")
-      .attr("stroke-width",f=>marketStrokeWidth(geoToMarket[f.properties.name]))
+      .attr("opacity",f=>marketOpacity(marketFromGeoFeature(f)))
+      .attr("stroke",f=>selectedSet.has(marketFromGeoFeature(f))?SELECTED_MARKET_STROKE:"#fff")
+      .attr("stroke-width",f=>marketStrokeWidth(marketFromGeoFeature(f)))
       .style("cursor","pointer")
-      .style("filter",f=>marketFilter(geoToMarket[f.properties.name]))
-      .on("click",(e,f)=>{const mn=geoToMarket[f.properties.name];if(mn) selectMarketFromMap(mn);});
+      .style("filter",f=>marketFilter(marketFromGeoFeature(f)))
+      .on("click",(e,f)=>{const mn=marketFromGeoFeature(f);if(mn) selectMarketFromMap(mn);})
+      .on("mousemove",(e,f)=>{
+        const mn=marketFromGeoFeature(f);if(!mn)return;
+        const v=getVal(mn);if(v===null){hideTip();return;}
+        const bm=byMarket[mn]||{};
+        showTip(e,{label:mn,value:`${cfg.label}: ${cfg.fmt(v)}  (n=${bm.n})`},true);
+      })
+      .on("mouseleave",hideTip);
 
   /* ── Pass 3: border lines on top of all fills ── */
   g.append("g").attr("class","world-borders").selectAll("path")
       .data(allSorted).join("path")
       .attr("d",path)
       .attr("fill","none")
-      .attr("stroke","rgba(255,255,255,0.6)")
+      .attr("stroke","none")
       .attr("stroke-width",0.4)
-      .style("pointer-events","none")
-      .on("mousemove",(e,f)=>{
-        const mn=geoToMarket[f.properties.name];if(!mn)return;
-        const v=getVal(mn);if(v===null){hideTip();return;}
-        const bm=byMarket[mn]||{};
-        showTip(e,{label:mn,value:`${cfg.label}: ${cfg.fmt(v)}  (n=${bm.n})`},true);
-      })
-      .on("mouseleave",hideTip);
+      .style("pointer-events","none");
   }
 
   /* ── Tiny country dots ───────────────────────────────────────── */
-  const tinyList=MARKETS.filter(m=>TINY.has(m)&&MARKET_COORDS[m]);
-  g.append("g").selectAll("g").data(tinyList).join("g")
+  const tinyList=["Bahrain","Singapore"].filter(m=>MARKET_COORDS[m]); // marker dots so these 1-2px countries are visible
+  g.append("g").selectAll("g").data(tinyList).join("g").attr("class","map-dot")
     .attr("transform",m=>{const p=projection(MARKET_COORDS[m]);return`translate(${p[0]},${p[1]})`;})
     .style("cursor","pointer")
     .attr("opacity",m=>marketOpacity(m))
@@ -4621,8 +4767,7 @@ function renderGlobalMap(sel,mode,heatMetric,rowFilter){
       /* Dark callout popup on map */
       const bm=byMarket[selName]||{};
       const v=getVal(selName);
-      const cx=Math.min(w-175,Math.max(5,p[0]-80));
-      const cy=Math.max(10,p[1]-82);
+      const cx=12, cy=12;   /* fixed top-left: map is zoomed to the selection */
       const fo=svg.append("foreignObject")
         .attr("x",cx).attr("y",cy)
         .attr("width",170).attr("height",80);
@@ -5629,12 +5774,13 @@ function escapeHtml(v){
     .replace(/'/g,"&#039;");
 }
 
-function displayLabelText(value){
-  return clean(value).replace(/^others?\s*\(please+\s+specify\)$/i,"Others");
+function displayLabelText(value,context="common"){
+  const label=clean(value);
+  return window.TravelPulseDisplayLabels?.format(label,context)||label;
 }
 
-function chartDisplayLabel(d){
-  return displayLabelText(d?.displayLabel ?? d?.label ?? "");
+function chartDisplayLabel(d,context="common"){
+  return displayLabelText(d?.displayLabel ?? d?.label ?? "",context);
 }
 
 function chartFilterLabel(d){
@@ -5642,15 +5788,13 @@ function chartFilterLabel(d){
 }
 
 function shortExperienceLabel(label){
-  return clean(label)
-    .replace(/\s*(?:â€”|—|–|-)\s*e\.g\..*$/i,"")
-    .trim();
+  return displayLabelText(label,"experiences");
 }
 
 function channelDisplayRows(rows){
   return rows.map(row=>({
     ...row,
-    label:clean(row.label).replace(/\s*\(e\.g\.,[^)]*\)/i,"").trim(),
+    label:displayLabelText(row.label,"infoChannels"),
     filterLabel:row.label
   }));
 }
@@ -6289,13 +6433,37 @@ function renderActive(){
   requestAnimationFrame(()=>{
     _renderActiveQueued=false;
     if(!DATA)return;
-    if(currentTab==="all"){ renderAllQuestions(); return; }
+    if(currentTab==="all"){ renderAllQuestions(); updateVisibleSampleWarnings(); return; }
     const pkey=PRECOMPUTED_TAB_KEY[currentTab];
     if(pkey && _manifest?.precomputed?.[pkey] && !PRECOMPUTED.tabs[pkey] && !_precomputedLoading[pkey]){
       ensurePrecomputedTab(pkey).then(()=>{ if(DATA && currentTab!=="all") renderActive(); });
     }
     const fn={overview:renderOverview,behaviour:renderBehaviour,airline:renderAirline,hotel:renderHotel,segments:renderSegments,market:renderMarket,destination:renderDestination,social:renderSocial}[currentTab];
     if(fn)fn();
+    updateVisibleSampleWarnings();
+  });
+}
+
+function lowSampleBadgeMarkup(sampleSize){
+  const n=Number(sampleSize);
+  if(!Number.isFinite(n)||n<0||n>=30)return "";
+  const label=`Sample size is less than 30 (n=${Math.floor(n)}).`;
+  return `<span class="low-sample-badge" role="img" aria-label="${label}" title="${label}"><img src="assets/sample-size-warning.svg" alt=""></span>`;
+}
+
+function updateVisibleSampleWarnings(){
+  if(!DATA?.recordsReady)return;
+  const panel=document.querySelector(`.tab-panel[data-panel="${currentTab}"]`);
+  if(!panel)return;
+  const sampleSize=activeRows().length;
+  const selectors=".card-head,.map-banner-bar,.hotel-sentiment-gauge-head,.segment-question-heading,.segment-spend-section-heading,.tab-question-head,.segments-page-head";
+  panel.querySelectorAll(selectors).forEach(heading=>{
+    if(heading.closest("[hidden]"))return;
+    const title=heading.matches(".map-banner-bar")?(heading.querySelector("span")||heading):heading.querySelector("h1,h2,h3")||heading;
+    const existing=title.querySelector(":scope > .low-sample-badge");
+    if(sampleSize<30){
+      if(!existing)title.insertAdjacentHTML("beforeend",lowSampleBadgeMarkup(sampleSize));
+    }else existing?.remove();
   });
 }
 

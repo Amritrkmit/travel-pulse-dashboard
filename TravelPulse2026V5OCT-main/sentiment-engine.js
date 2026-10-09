@@ -434,11 +434,21 @@ function _tagMapPaths() {
 
 
 
+/* The Source Market Overview map must colour the SOURCE markets (Russia, Nigeria, ... every market that has
+   respondents) - that is done by renderGlobalMap() in app-final.js. This script used to repaint the same map
+   by DESTINATION sentiment, which left source markets with no destination data (Russia, Nigeria) grey and
+   painted destination-only countries (Sri Lanka, Maldives ...). Set to true to restore the old behaviour. */
+const OVERVIEW_PAINT_DESTINATION_SENTIMENT = false;
+
 function _renderSentimentMap(data) {
 
   const c=document.querySelector('#overviewMap');
 
   if (!c) return;
+  if (!OVERVIEW_PAINT_DESTINATION_SENTIMENT) {
+    const oldLeg=document.getElementById('sentimentMapLegend'); if (oldLeg) oldLeg.remove();
+    return;                                   /* keep renderGlobalMap's source-market colours */
+  }
 
   const byGeo=_byGeoMap(data);
 
@@ -558,7 +568,9 @@ function _attachMapTooltips() {
 
       if (!tip) return;
 
-      tip.innerHTML=`<strong>${name}</strong><br><em style="color:#888;font-size:10px;">Click to view sentiment scores</em>`;
+      tip.innerHTML=_isSourceMarket(name)
+        ? `<strong>${name}</strong><br><em style="color:#888;font-size:10px;">Source market &middot; click to select</em>`
+        : `<strong>${name}</strong><br><em style="color:#888;font-size:10px;">Click to view destination sentiment</em>`;
 
       tip.style.opacity=1;
 

@@ -69,6 +69,9 @@ const _D2G = {           /* CSV Destination → GeoJSON name */
 
   'UAE':'United Arab Emirates','South Korea':'South Korea',
 
+  'Hong Kong':'Hong Kong S.A.R.',   /* GeoJSON calls it Hong Kong S.A.R. */
+
+
   'Russia':'Russia',
 
 };
@@ -77,9 +80,64 @@ const _G2D = {};
 
 Object.entries(_D2G).forEach(([d,g]) => { _G2D[g] = d; });
 
-function _dD2G(d) { return _D2G[d] || d; }
+/* ── Tolerant destination-name resolver ────────────────────────────
+   Data spellings (UAE, UK, USA, Srilanka, Lithunia, cyprus, Cape verde, Macedonia, bahamas,
+   Tanzania, Hong Kong ...) are matched to the GeoJSON country name ignoring case, spaces,
+   punctuation and accents. Region labels (Europe, Asia, Middle East ...) resolve to null. */
+const _dNormKey = v => String(v==null?'':v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+const _D_KEY_ALIASES = {
+  uae:'United Arab Emirates', emirates:'United Arab Emirates', unitedarabemirates:'United Arab Emirates',
+  uk:'United Kingdom', greatbritain:'United Kingdom', england:'United Kingdom', scotland:'United Kingdom', wales:'United Kingdom',
+  usa:'United States of America', us:'United States of America', unitedstates:'United States of America', america:'United States of America',
+  russianfederation:'Russia', korearepublicofsouthkorea:'South Korea', korea:'South Korea', republicofkorea:'South Korea',
+  hongkong:'Hong Kong S.A.R.', hongkongsar:'Hong Kong S.A.R.', macau:'Macao S.A.R', macao:'Macao S.A.R',
+  srilanka:'Sri Lanka', lithunia:'Lithuania', lituania:'Lithuania', macedonia:'North Macedonia', czechrepublic:'Czechia',
+  capeverde:'Cabo Verde', bahamas:'The Bahamas', tanzania:'United Republic of Tanzania', serbia:'Republic of Serbia',
+  congo:'Republic of the Congo', drcongo:'Democratic Republic of the Congo', democraticrepublicofcongo:'Democratic Republic of the Congo',
+  swaziland:'eSwatini', timorleste:'East Timor', burma:'Myanmar', turkiye:'Turkey', cotedivoire:'Ivory Coast',
+  vaticancity:'Vatican', holland:'Netherlands', thenetherlands:'Netherlands', palestinianterritories:'Palestine',
+  bosniaherzegovina:'Bosnia and Herzegovina', bosnia:'Bosnia and Herzegovina', uzbek:'Uzbekistan'
+};
+const _D_REGION_LABELS = new Set(['europe','africa','asia','antarctica','middleeast','northamerica','southamerica','caribbean','oceania','latam','me']);
+let _dGeoIdx = null, _dGeoIdxFor = null;
+function _dGeoIndex() {
+  const W = (typeof WORLD !== 'undefined') ? WORLD : null;
+  if (!W || !W.features) return {};
+  if (_dGeoIdx && _dGeoIdxFor === W) return _dGeoIdx;
+  _dGeoIdx = {}; _dGeoIdxFor = W;
+  W.features.forEach(f => { const n = f.properties && f.properties.name; if (n && !_dGeoIdx[_dNormKey(n)]) _dGeoIdx[_dNormKey(n)] = n; });
+  return _dGeoIdx;
+}
+function _dD2G(d) {
+  if (_D2G[d]) return _D2G[d];
+  const key = _dNormKey(d);
+  if (_D_KEY_ALIASES[key]) return _D_KEY_ALIASES[key];
+  const idx = _dGeoIndex();
+  if (idx[key]) return idx[key];
+  return d;
+}
+function _dIsRegionLabel(d) { return _D_REGION_LABELS.has(_dNormKey(d)); }
 
 function _dG2D(g) { return _G2D[g] || g; }
+
+const _D_ISO3 = {
+  Australia:'AUS', Bahrain:'BHR', Brazil:'BRA', Canada:'CAN', China:'CHN', Egypt:'EGY', France:'FRA', Germany:'DEU', India:'IND', Indonesia:'IDN', Italy:'ITA', Japan:'JPN', Jordan:'JOR', Kenya:'KEN', Malaysia:'MYS', Netherlands:'NLD', Nigeria:'NGA', Qatar:'QAT', Russia:'RUS', 'Russian Federation':'RUS', 'Saudi Arabia':'SAU', Singapore:'SGP', 'South Korea':'KOR', Spain:'ESP', Switzerland:'CHE', Thailand:'THA', Turkey:'TUR', 'United Arab Emirates':'ARE', UAE:'ARE', 'United Kingdom':'GBR', UK:'GBR', 'United States of America':'USA', USA:'USA', 'South Africa':'ZAF', Ireland:'IRL'
+};
+const _D_ISO_TO_DEST = Object.fromEntries(Object.entries(_D_ISO3).map(([name,iso])=>[iso,name]));
+function _dFeatureGeoName(f){
+  const p=f&&f.properties||{};
+  const iso=String(p.iso_a3||p.ISO_A3||p.ADM0_ISO||p.ADM0_A3||'').toUpperCase();
+  if(iso){
+    if(iso==='USA') return 'United States of America';
+    if(iso==='GBR') return 'United Kingdom';
+    if(iso==='ARE') return 'United Arab Emirates';
+    if(iso==='KOR') return 'South Korea';
+    if(iso==='RUS') return 'Russia';
+    const hit=Object.entries(_D_ISO3).find(([name,code])=>code===iso && !['USA','UK','UAE','Russian Federation'].includes(name));
+    if(hit) return _dD2G(hit[0]);
+  }
+  return p.name||p.NAME||p.ADMIN||'';
+}
 
 
 
@@ -191,7 +249,8 @@ function _dLoadDestChunk(geoName) {
 
   if (!m || !m.dest_sentiment) return Promise.resolve(null);
 
-  const url = m.dest_sentiment[geoName] || m.dest_sentiment[_dG2D(geoName)];
+  let url = m.dest_sentiment[geoName] || m.dest_sentiment[_dG2D(geoName)];
+  if (!url) { const k = Object.keys(m.dest_sentiment).find(k => k !== '__world_map__' && _dD2G(k) === geoName); if (k) url = m.dest_sentiment[k]; }
 
   return url ? _dFetch(url) : Promise.resolve(null);
 
@@ -323,7 +382,7 @@ function _dSourceMarketToGeo(sourceMarket) {
 
   };
 
-  return aliases[sourceMarket] || sourceMarket;
+  return _dD2G(aliases[sourceMarket] || sourceMarket);
 
 }
 
@@ -391,7 +450,7 @@ function _dBuildByGeo() {
 
   const m = {};
 
-  _dActiveData().forEach(d => { m[_dD2G(d.dest)] = d; });
+  _dActiveData().forEach(d => { if (_dIsRegionLabel(d.dest)) return; m[_dD2G(d.dest)] = d; });
 
   return m;
 
@@ -449,17 +508,15 @@ function _dDrawMap() {
 
 
 
-  const W = Math.max(680, el.clientWidth || 760);
+  const W = Math.max(680, (el.clientWidth || 760) - 36);   /* minus container side padding */
 
-  const H = Math.max(500, el.clientHeight || 520);
+  const _fit = mapFitWorld(W);                              /* FIX: map fills the full width */
+
+  const H = _fit.height + 10;
 
 
 
-  const projection = d3.geoNaturalEarth1();
-
-  const fitFeats   = countries.features.filter(f=>f.properties&&f.properties.name!=='Antarctica');
-
-  projection.fitExtent([[18,22],[W-18,H-56]], {type:'FeatureCollection',features:fitFeats});
+  const projection = _fit.projection;
 
   const path = d3.geoPath(projection);
 
@@ -472,6 +529,13 @@ function _dDrawMap() {
     .attr('viewBox',`0 0 ${W} ${H}`)
 
     .style('display','block');
+
+  svg.insert('path', ':first-child')
+    .datum({type:'Sphere'})
+    .attr('d', d3.geoPath(projection))
+    .attr('fill', '#f7f5fb')
+    .attr('stroke', 'none')
+    .style('pointer-events','none');
 
   const g = svg.append('g');
   if (typeof window.attachMapZoomControls === 'function') {
@@ -490,21 +554,39 @@ function _dDrawMap() {
 
   const hasSourceSelection = sourceMarkets.length > 0;
 
-  const SOURCE_SELECTED_FILL = '#f2a45a';
+  const SOURCE_SELECTED_FILL = null; // preserve sentiment/data fill
 
-  const SOURCE_SELECTED_STROKE = '#8b4d2b';
+  const SOURCE_SELECTED_STROKE = '#530095';
 
-  const sourceFill = (name, fallback) => sourceGeoSet.has(name) ? SOURCE_SELECTED_FILL : fallback;
+  const sourceFill = (name, fallback) => fallback;
 
-  const sourceOpacity = name => !hasSourceSelection || sourceGeoSet.has(name) ? 1 : .22;
+  const sourceOpacity = name => !hasSourceSelection || sourceGeoSet.has(name) ? 1 : .45;
 
-  const sourceFilter = name => !hasSourceSelection ? null : (sourceGeoSet.has(name) ? 'drop-shadow(0 4px 9px rgba(139,77,43,.42))' : 'grayscale(.35) blur(.25px)');
+  const sourceFilter = name => !hasSourceSelection ? null : (sourceGeoSet.has(name) ? null : null);
 
   const allSorted = [...countries.features].sort((a,b)=>_dPolyArea(b)-_dPolyArea(a));
 
-  const destFeats = allSorted.filter(f=>f.properties&&destSet.has(f.properties.name));
+  /* FIX: several GeoJSON features share one country name (France = FRA + French Guiana,
+     Martinique, Guadeloupe, Reunion, Mayotte; New Zealand = NZL + Tokelau ...). Only the
+     biggest feature per name is the real destination; the rest stay grey and are not clickable. */
+  const _dTotalArea = f => {
+    const g=f.geometry; if(!g) return 0;
+    const sl=r=>Math.abs(r.reduce((s,p,i,a)=>{const n=a[(i+1)%a.length];return s+p[0]*n[1]-n[0]*p[1];},0))/2;
+    if(g.type==='Polygon') return sl(g.coordinates[0]);
+    if(g.type==='MultiPolygon') return g.coordinates.reduce((s,p)=>s+sl(p[0]),0);
+    return 0;
+  };
+  const _dMainByName = new Map();
+  countries.features.forEach(f=>{
+    const n=f.properties&&f.properties.name; if(!n) return;
+    const cur=_dMainByName.get(n);
+    if(!cur || _dTotalArea(f)>_dTotalArea(cur)) _dMainByName.set(n,f);
+  });
+  const _dIsMain = f => !!(f.properties&&f.properties.name) && _dMainByName.get(f.properties.name)===f;
+  const _dGeoOf  = f => _dIsMain(f) ? _dFeatureGeoName(f) : '';
+  const destFeats = allSorted.filter(f=>_dIsMain(f)&&destSet.has(f.properties.name));
 
-  const bgFeats   = allSorted.filter(f=>!f.properties||!destSet.has(f.properties.name));
+  const bgFeats   = allSorted.filter(f=>!destFeats.includes(f));
 
 
 
@@ -516,13 +598,13 @@ function _dDrawMap() {
 
     .attr('d',path)
 
-    .attr('data-dgeoname',f=>f.properties&&f.properties.name)
+    .attr('data-dgeoname',f=>_dGeoOf(f))
 
-    .attr('fill',f=>sourceFill(f.properties&&f.properties.name,'#d8d4e0'))
-    .attr('opacity',f=>sourceOpacity(f.properties&&f.properties.name))
-    .attr('stroke',f=>sourceGeoSet.has(f.properties&&f.properties.name)?SOURCE_SELECTED_STROKE:'#fff')
-    .attr('stroke-width',f=>sourceGeoSet.has(f.properties&&f.properties.name)?2.5:0.3)
-    .style('filter',f=>sourceFilter(f.properties&&f.properties.name))
+    .attr('fill',f=>sourceFill(_dGeoOf(f),'#d8d4e0'))
+    .attr('opacity',f=>sourceOpacity(_dGeoOf(f)))
+    .attr('stroke',f=>sourceGeoSet.has(_dGeoOf(f))?SOURCE_SELECTED_STROKE:'#fff')
+    .attr('stroke-width',f=>sourceGeoSet.has(_dGeoOf(f))?4:0.3)
+    .style('filter',f=>sourceFilter(_dGeoOf(f)))
 
     .style('pointer-events','all');
 
@@ -536,26 +618,39 @@ function _dDrawMap() {
 
     .attr('d',path)
 
-    .attr('data-dgeoname',f=>f.properties&&f.properties.name)
+    .attr('data-dgeoname',f=>_dGeoOf(f))
 
     .attr('fill',f=>{
 
-      const name=f.properties&&f.properties.name;
+      const name=_dGeoOf(f);
 
       return sourceFill(name, byGeo[name] ? _dScoreToColour(byGeo[name].score) : '#c8c8c8');
 
     })
 
-    .attr('opacity',f=>sourceOpacity(f.properties&&f.properties.name))
+    .attr('opacity',f=>sourceOpacity(_dGeoOf(f)))
 
-    .attr('stroke',f=>sourceGeoSet.has(f.properties&&f.properties.name)?SOURCE_SELECTED_STROKE:'#fff')
-    .attr('stroke-width',f=>sourceGeoSet.has(f.properties&&f.properties.name)?2.5:0.5)
+    .attr('stroke',f=>sourceGeoSet.has(_dGeoOf(f))?SOURCE_SELECTED_STROKE:'#fff')
+    .attr('stroke-width',f=>sourceGeoSet.has(_dGeoOf(f))?4:0.5)
 
-    .style('filter',f=>sourceFilter(f.properties&&f.properties.name))
+    .style('filter',f=>sourceFilter(_dGeoOf(f)))
 
     .style('cursor','pointer');
 
 
+
+  /* Pass 2b — marker dots for tiny destinations (Singapore, Hong Kong, Maldives, Malta ...) */
+  const _dTinyFeats = destFeats.filter(f => path.area(f) < 45);
+  g.append('g').attr('class','d-dots').selectAll('g').data(_dTinyFeats).join('g')
+    .attr('class','map-dot')
+    .attr('transform',f=>{const c=path.centroid(f);return `translate(${c[0]},${c[1]})`;})
+    .append('circle')
+    .attr('r',4.2)
+    .attr('data-dgeoname',f=>_dGeoOf(f))
+    .attr('fill',f=>{const n=_dGeoOf(f);return sourceFill(n, byGeo[n] ? _dScoreToColour(byGeo[n].score) : '#c8c8c8');})
+    .attr('opacity',f=>sourceOpacity(_dGeoOf(f)))
+    .attr('stroke','#fff').attr('stroke-width',1.3)
+    .style('cursor','pointer');
 
   /* Pass 3 — border strokes */
 
@@ -567,7 +662,7 @@ function _dDrawMap() {
 
     .attr('fill','none')
 
-    .attr('stroke','rgba(255,255,255,0.55)').attr('stroke-width',0.35)
+    .attr('stroke','none').attr('stroke-width',0.35)
 
     .style('pointer-events','none');
 
@@ -575,7 +670,7 @@ function _dDrawMap() {
 
   /* Tooltips + click on every path */
 
-  el.querySelectorAll('svg path[data-dgeoname]').forEach(p => {
+  el.querySelectorAll('svg [data-dgeoname]').forEach(p => {
 
     const name  = p.dataset.dgeoname;
 
@@ -613,6 +708,21 @@ function _dDrawMap() {
 
   });
 
+  /* zoom support: remember map context, then zoom to selected destination / source market(s) */
+  window.__destMapCtx = { svg, path, countries, mainFeat:_dIsMain, geoOf:_dGeoOf, sourceGeoSet, hasSourceSelection };
+  _dApplyMapZoom();
+
+}
+
+function _dApplyMapZoom() {
+  const c = window.__destMapCtx;
+  if (!c || typeof window.mapZoomToFeatures !== 'function') return;
+  let names = [];
+  if (_dSelCountry) names = [_dSelCountry];                 /* clicked destination wins */
+  else if (c.hasSourceSelection) names = [...c.sourceGeoSet];   /* else source-market filter / region */
+  const set = new Set(names);
+  const feats = set.size ? c.countries.features.filter(f => c.mainFeat(f) && set.has(c.geoOf(f))) : [];
+  window.mapZoomToFeatures(c.svg, c.path, feats);
 }
 
 
@@ -685,7 +795,7 @@ function _dSelectCountry(geoName) {
 
   const byGeo = _dBuildByGeo();
 
-  document.querySelectorAll('#destSentimentMap svg path[data-dgeoname]').forEach(p => {
+  document.querySelectorAll('#destSentimentMap svg [data-dgeoname]').forEach(p => {
 
     const name = p.dataset.dgeoname;
 
@@ -710,6 +820,9 @@ function _dSelectCountry(geoName) {
     }
 
   });
+
+  _dApplyMapZoom();   /* zoom to the clicked destination (or back out when deselected) */
+
 
 
 

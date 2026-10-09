@@ -1,0 +1,1176 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Travel Pulse | 2nd Wave Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css?v=20261006_v1" />
+
+  <link rel="stylesheet" href="chatbot.css?v=20261001_v1" />
+
+<script>
+
+(function () {
+
+  if (sessionStorage.getItem("travelPulseAuth") !== "1") {
+
+    window.location.replace("login.html");
+
+  }
+
+})();
+
+</script>
+
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+
+  <header class="topbar">
+
+    <div class="brand" aria-label="Escalent Travel Pulse brand">
+
+      <img class="brand-logo" src="escalent-logo.svg" alt="Escalent logo" />
+
+      <div class="brand-copy">
+
+        <span class="brand-product">Travel Pulse</span>
+
+      </div>
+
+    </div>
+
+    <div class="headline">
+
+      <h1>Travel Intent &amp; Behaviour Intelligence | 2nd Wave 2026</h1>
+
+    </div>
+
+    <button class="logout-btn" id="logoutBtn" type="button" title="Log out">Log out</button>
+
+  </header>
+
+
+
+  <!-- TAB NAV -->
+
+  <nav class="tabs" id="tabs">
+
+    <button class="tab active" data-tab="behaviour">Travel Behaviour</button>
+
+    <button class="tab" data-tab="overview">Source Market Overview</button>
+
+    <button class="tab" data-tab="destination">Destination Market Overview</button>
+
+    <button class="tab" data-tab="airline">Airline Overview</button>
+
+    <button class="tab" data-tab="hotel">Hotels Overview</button>
+
+    <button class="tab" data-tab="segments">Segments Analysis</button>
+
+    
+
+  </nav>
+
+
+
+  <!-- FILTER BAR -->
+
+  <div class="filters-bar" id="filtersBar">
+
+    <div class="filter-title">Filters</div>
+
+    <div class="filter-grid" id="filterGrid"></div>
+
+    <div class="filter-actions">
+
+      <button class="chip-clear" id="chipClear" type="button" title="Clear active filter" hidden>✕</button>
+
+      <button class="reset-btn" id="resetBtn" type="button">↺ Reset</button>
+
+    </div>
+
+  </div>
+
+
+
+  <main>
+
+
+
+    <!-- OVERVIEW / SOURCE OVERVIEW -->
+
+    <section class="tab-panel" data-panel="overview" hidden>
+
+      <div class="map-banner-bar">
+
+        <span>The gradient map shows the TSI score for each source market — click a country to drill into market detail</span>
+
+      </div>
+
+
+
+      <!-- Map: wider (map-right now narrower) -->
+
+      <section class="overview-map-wrapper overview-map-wrapper--wide">
+
+        <div class="overview-map-left">
+
+          <div id="overviewMap" class="overview-map-container"></div>
+
+        </div>
+
+        <div class="overview-map-right" id="mapInsight"></div>
+
+      </section>
+
+      <!-- Wave sentiment cards injected by sentiment-engine.js below the map -->
+
+
+
+      <!-- Word clouds row -->
+
+      <section id="overviewWordCloudRow" class="grid two" style="margin-top:10px;">
+
+        <article class="card" style="height:380px;">
+
+          <div class="card-head">
+
+            <div><h2 id="socialThemeWordCloudTitle">Key Travel Associations — All Markets</h2></div>
+
+            <span class="mini-note">Wave 4 · Word size = mentions · Hover for count</span>
+
+          </div>
+
+          <div id="socialThemeWordCloud" class="chart" style="height:340px;min-height:0"></div>
+
+        </article>
+
+        <article class="card" style="height:380px;">
+
+          <div class="card-head">
+
+            <div><h2 id="destWordCloudTitle">Travel Planning — All Markets</h2></div>
+
+            <span class="mini-note">Q2 · Travel planning stage · Click a row to filter</span>
+
+          </div>
+
+          <div id="q2PlanningStageChart" class="chart" style="height:340px;min-height:0"></div>
+
+        </article>
+
+      </section>
+
+    </section>
+
+
+
+    <!-- TRAVEL BEHAVIOUR -->
+
+    <section class="tab-panel" data-panel="behaviour">
+
+      <section class="grid three behaviour-demographics-grid">
+
+        <article class="card behaviour-demographic-card behaviour-marital-card">
+
+          <div class="card-head"><div><h2>Marital Status</h2></div></div>
+
+          <div id="maritalChart" class="chart marital-infographic-chart"></div>
+
+        </article>
+
+        <article class="card behaviour-demographic-card">
+
+          <div class="card-head"><div><h2>Children in Household</h2></div></div>
+
+          <div id="childrenChart" class="chart" style="min-height:280px"></div>
+
+        </article>
+
+        <article class="card behaviour-demographic-card">
+
+          <div class="card-head"><div><h2>Trip Companion</h2></div></div>
+
+          <div id="companionChart2" class="chart" style="min-height:280px"></div>
+
+        </article>
+
+      </section>
+
+      <div class="stage-kpi-row stage-kpi-row-five persistent-kpi-strip">
+
+        <div class="stage-kpi insight-kpi"><div class="stage-kpi-label">Insight</div><div class="stage-kpi-val" id="skpiInsight">—</div></div>
+
+        <div class="stage-kpi"><div class="stage-kpi-label" id="skpiLabel2">Destinations considered</div><div class="stage-kpi-val" id="skpiVal2">—</div></div>
+
+        <div class="stage-kpi"><div class="stage-kpi-label" id="skpiLabel3">Top info channel</div><div class="stage-kpi-val" id="skpiVal3">—</div></div>
+
+        <div class="stage-kpi"><div class="stage-kpi-label" id="skpiLabel4">Top experience sought</div><div class="stage-kpi-val" id="skpiVal4">—</div></div>
+
+        <div class="stage-kpi"><div class="stage-kpi-label" id="skpiLabel5">Inspire stage</div><div class="stage-kpi-val" id="skpiVal5">—</div></div>
+
+      </div>
+
+
+
+      <div class="behaviour-layout">
+
+        <div class="behaviour-sidebar">
+
+          <div class="journey-flow" id="journeyFlow" aria-label="Customer journey stages"></div>
+
+        </div>
+
+        <div class="behaviour-panels-col">
+
+
+
+          <!-- INSPIRE -->
+
+          <div class="journey-stage-panel" id="stageInspire">
+
+            <section class="grid two">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Main Purpose of Trip</h2></div></div>
+
+                <div id="purposeChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Key Destinations Considered</h2></div></div>
+
+                <div id="inspireDestChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+            </section>
+
+            <section class="grid">
+
+              <article class="card wide">
+
+                <div class="card-head"><div><h2>Key Experiences Sought</h2></div></div>
+
+                <div id="experienceChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+            </section>
+
+          </div>
+
+
+
+          <!-- PLAN -->
+
+          <div class="journey-stage-panel" id="stagePlan" hidden>
+
+            <section class="grid two">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Key Information Channels</h2></div></div>
+
+                <div id="planInfoChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Key Trip Considerations</h2></div></div>
+
+                <div id="planDecisionChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+            </section>
+
+            <section class="grid two plan-timing-grid">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Booking Lead Time</h2></div></div>
+
+                <div id="planBookingLeadTimePie" class="chart donut-wrap" style="min-height:360px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Planned Travel Period</h2></div></div>
+
+                <div id="planTravelPeriodPie" class="chart donut-wrap" style="min-height:360px"></div>
+
+              </article>
+
+            </section>
+
+            <section class="grid plan-budget-grid">
+
+              <article class="card plan-budget-card">
+
+                <div class="card-head"><div><h2>Segment by Budget</h2></div></div>
+
+                <div id="planSegmentBudgetPie" class="chart donut-wrap" style="min-height:260px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Trip Duration</h2></div></div>
+
+                <div id="planTripDurationPie" class="chart donut-wrap" style="min-height:320px"></div>
+
+              </article>
+
+              <article class="card plan-budget-card">
+
+                <div class="card-head"><div><h2>Budget Change</h2></div></div>
+
+                <div id="planBudgetDonut" class="chart donut-wrap" style="min-height:260px"></div>
+
+              </article>
+
+              <article class="card plan-budget-reasons-card">
+
+                <div class="card-head"><div><h2>Budget Change Reasons</h2></div></div>
+
+                <div class="plan-budget-reason-tabs">
+
+                  <button type="button" id="btnBudgetReasonDec" class="stage-subtab-btn" style="padding:4px 12px;border-radius:20px;border:1px solid #d9384a;background:#d9384a;color:#fff;font-size:10px;font-weight:700;cursor:pointer;">Reasons for Decrease</button>
+
+                  <button type="button" id="btnBudgetReasonInc" class="stage-subtab-btn" style="padding:4px 12px;border-radius:20px;border:1px solid #3db87e;background:transparent;color:#3db87e;font-size:10px;font-weight:700;cursor:pointer;">Reasons for Increase</button>
+
+                </div>
+
+                <div id="planBudgetReasonsChart" class="chart" style="min-height:220px"></div>
+
+              </article>
+
+            </section>
+
+          </div>
+
+
+
+          <!-- BOOK -->
+
+          <div class="journey-stage-panel" id="stageBook" hidden>
+
+            <section class="grid two">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Finalized Destinations</h2></div></div>
+
+                <div id="finalizedDestChart" class="chart" style="min-height:300px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Booking Sequence</h2></div></div>
+
+                <div id="bookingSeqChevron" class="booking-chevron-wrap" style="min-height:260px;padding:16px 8px;"></div>
+
+              </article>
+
+            </section>
+
+            <section class="grid two">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Booking Channels</h2></div></div>
+
+                <div id="bookingChannelsBarChart" class="chart" style="min-height:300px"></div>
+
+              </article>
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>Package Type</h2></div></div>
+
+                <div id="packageTypeDonut" class="chart donut-wrap" style="min-height:280px"></div>
+
+              </article>
+
+            </section>
+
+          </div>
+
+
+
+          <!-- DURING TRIP -->
+
+          <div class="journey-stage-panel" id="stageOnTrip" hidden>
+
+            <section class="grid two">
+
+              <article class="card">
+
+                <div class="card-head"><div><h2>On-Site Bookings &amp; Activities</h2></div></div>
+
+                <div id="destExpChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+              <article class="card ontrip-ai-card">
+
+                <div class="card-head" style="border-radius:8px 8px 0 0;margin:-20px -20px 16px;padding:14px 20px;">
+
+                  <div><span class="section-tag" style="color:rgba(255,255,255,0.65);">AI TOOL USAGE LIKELIHOOD DURING TRIP</span><h2 style="color:#fff;font-size:13px;">AI Tool Usage Likelihood During Trip</h2></div>
+
+                  <span class="q9b-tab-badge">Q9b</span>
+
+                </div>
+
+                <p style="font-size:10px;color:#6b6178;margin-bottom:14px;font-style:italic;">How likely are you to use an AI chatbot / AI travel app to help make decisions during your trip?</p>
+
+                <div class="q9b-likelihood-layout">
+
+                  <div class="q9b-pct-box" id="q9bPctBox"><div class="q9b-pct-num" id="q9bPctNum">—</div><div class="q9b-pct-lbl">Top 2 Box</div></div>
+
+                  <div class="q9b-legend" id="q9bLegend"></div>
+
+                </div>
+
+              </article>
+
+            </section>
+
+            <section class="grid">
+
+              <article class="card wide" style="background:#fff;">
+
+                <div class="card-head" style="margin-bottom:10px;">
+
+                  <div><span class="section-tag" style="color:#530095;">AI TASKS</span><h2 style="color:#230B54;">AI Tasks Users Would Be Comfortable With</h2></div>
+
+                  <span class="q9b-tab-badge">Q9c</span>
+
+                </div>
+
+                <p style="font-size:9.5px;color:#3F3F3F;margin-bottom:12px;font-style:italic;">Select up to 3 tasks &nbsp;|&nbsp; Base: likely AI users</p>
+
+                <div id="aiTasksChart" class="chart" style="min-height:280px"></div>
+
+              </article>
+
+            </section>
+
+          </div>
+
+
+
+        </div>
+
+      </div>
+
+
+
+      <section class="tab-question-section">
+
+        <div class="tab-question-head">
+
+          <div><span class="section-tag">QUESTION DETAIL</span><h2>Discovery, booking, AI &amp; spend questions</h2><p>All Travel Behaviour survey questions grouped by topic.</p></div>
+
+          <div class="question-jump" id="behaviourQuestionJump"></div>
+
+        </div>
+
+        <div class="tab-question-grid" id="behaviourQuestionGrid"></div>
+
+      </section>
+
+    </section>
+
+
+
+    <!-- AIRLINE POV -->
+
+    <section class="tab-panel" data-panel="airline" hidden>
+
+      <div class="insight-banner">
+
+        <span class="insight-tag">Insight</span>
+
+        <span id="airlineInsight"></span>
+
+      </div>
+
+
+
+      <div class="map-banner-bar hotel-sentiment-banner">
+
+        <span>The sentiment map shows airline experience score by source market — click a country to update the top airline gauges</span>
+
+      </div>
+
+
+
+      <section class="overview-map-wrapper overview-map-wrapper--wide hotel-sentiment-map-wrapper">
+
+        <div class="overview-map-left">
+
+          <div id="airlineSentimentMap" class="overview-map-container"></div>
+
+        </div>
+
+        <div class="overview-map-right" id="airlineSentimentMapInsight"></div>
+
+      </section>
+
+
+
+      <section class="hotel-sentiment-gauge-section">
+
+        <div class="hotel-sentiment-gauge-head">
+
+          <div>
+
+            <span class="section-tag">AIRLINE POV · SOURCE MARKET SENTIMENT</span>
+
+            <h2 id="airlineSentimentGaugeTitle">Airline Current Period Sentiment — All Markets</h2>
+
+          </div>
+
+          <span class="mini-note">Current: Jun-Jul 2026 · Normalized score = (Positive - Negative) / Total sentiments × 100</span>
+
+        </div>
+
+        <div class="hotel-sentiment-gauge-grid" id="airlineSentimentGaugeGrid"></div>
+
+      </section>
+
+
+
+      <section class="card wide airline-slide2-card">
+
+        <div class="airline-slide2-header" id="airlineSlide2Header">
+
+          NPS | All Markets
+
+        </div>
+
+        <div class="airline-nps-row" id="airlineNpsScoreCards"></div>
+
+        <div class="airline-nps-legend">
+
+          <span class="nps-leg-scale">Likelihood to recommend selected airline (0-10 scale)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#3db87e"></span> Promoters (9-10)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#ffb21a"></span> Passives (7-8)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#ef476f"></span> Detractors (0-6)</span>
+
+        </div>
+
+      </section>
+
+
+
+      <section class="grid one">
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Preferred Airline</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#372266;color:#fff;">Q14</span>
+
+          </div>
+
+          <div id="carrierChangeChart" class="chart" style="min-height:340px"></div>
+
+        </article>
+
+
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Strategies That Would Drive Airline Booking</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#3db87e;color:#fff;">Q17</span>
+
+          </div>
+
+          <div id="airlineStrategyChart" class="chart" style="min-height:340px"></div>
+
+          <div id="q18DrillPanel" class="q18-drill-panel" hidden>
+
+            <div class="q18-drill-head">
+
+              <span class="q18-drill-label" id="q18DrillLabel">Top 3 airlines for this strategy</span>
+
+              <button type="button" id="q18DrillClose" class="q18-drill-close">✕</button>
+
+            </div>
+
+            <div class="q18-drill-tiles" id="q18DrillTiles"></div>
+
+          </div>
+
+        </article>
+
+      </section>
+
+
+
+      <section class="grid two">
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Airline Loyalty Programme</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#ff7f2a;color:#fff;">Q16a</span>
+
+          </div>
+
+          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">How important is being a member of a loyalty/frequent flyer programme when selecting an airline?</p>
+
+          <div id="airlineLoyaltyChart" class="chart" style="min-height:260px"></div>
+
+        </article>
+
+
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Most Valued Airline Loyalty Programme Features</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#fff;color:#f05a22;font-weight:800;">Q16b</span>
+
+          </div>
+
+          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">Select up to 3 features that matter most to you</p>
+
+          <div id="airlineLoyaltyFeatChart" class="chart" style="min-height:360px"></div>
+
+        </article>
+
+      </section>
+
+
+
+      <section class="grid two">
+
+        <article class="card wide">
+
+          <div class="card-head"><div><h2>Key Airline Selection Factors</h2></div></div>
+
+          <div id="airlineConsiderChart" class="chart" style="min-height:280px"></div>
+
+        </article>
+
+        <article class="card">
+
+          <div class="card-head"><div><h2>Preferred Cabin Class</h2></div></div>
+
+          <div id="cabinChart" class="chart donut-wrap"></div>
+
+        </article>
+
+      </section>
+
+
+
+      <section class="tab-question-section">
+
+        <div class="tab-question-head">
+
+          <div><span class="section-tag">QUESTION DETAIL</span><h2>Airline questions</h2><p>Carrier, cabin, NPS, considerations, loyalty, booking strategy and carrier-level matrix.</p></div>
+
+          <div class="question-jump" id="airlineQuestionJump"></div>
+
+        </div>
+
+        <div class="tab-question-grid" id="airlineQuestionGrid"></div>
+
+      </section>
+
+    </section>
+
+
+
+    <!-- HOTEL POV -->
+
+    <section class="tab-panel" data-panel="hotel" hidden>
+
+      <div class="insight-banner">
+
+        <span class="insight-tag">Insight</span>
+
+        <span id="hotelInsight"></span>
+
+      </div>
+
+
+
+      <div class="map-banner-bar hotel-sentiment-banner">
+
+        <span>The sentiment map shows hotel experience score by source market — click a country to update the top hotel gauges</span>
+
+      </div>
+
+
+
+      <section class="overview-map-wrapper overview-map-wrapper--wide hotel-sentiment-map-wrapper">
+
+        <div class="overview-map-left">
+
+          <div id="hotelSentimentMap" class="overview-map-container"></div>
+
+        </div>
+
+        <div class="overview-map-right" id="hotelSentimentMapInsight"></div>
+
+      </section>
+
+
+
+      <section class="hotel-sentiment-gauge-section">
+
+        <div class="hotel-sentiment-gauge-head">
+
+          <div>
+
+            <span class="section-tag">HOTEL POV · SOURCE MARKET SENTIMENT</span>
+
+            <h2 id="hotelSentimentGaugeTitle">Hotel Current Period Sentiment — All Markets</h2>
+
+          </div>
+
+          <span class="mini-note">Current: Jun-Jul 2026 · Normalized score = (Positive - Negative) / Total sentiments × 100</span>
+
+        </div>
+
+        <div class="hotel-sentiment-gauge-grid" id="hotelSentimentGaugeGrid"></div>
+
+      </section>
+
+
+
+      <section class="grid three hotel-slide1-grid">
+
+        <article class="card hotel-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:10px 14px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:13px;margin:0;">Preferred Accommodation</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#372266;color:#fff;">Q19</span>
+
+          </div>
+
+          <div id="hotelAccomChart" class="chart" style="min-height:300px"></div>
+
+        </article>
+
+
+
+        <article class="card hotel-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:10px 14px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:13px;margin:0;">Preferred Hotel Brand</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#372266;color:#fff;">Q21</span>
+
+          </div>
+
+          <div id="hotelBrandChangeChart" class="chart" style="min-height:300px"></div>
+
+        </article>
+
+
+
+        <article class="card hotel-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:10px 14px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:13px;margin:0;">Strategies That Would Drive Hotel Booking</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#288f5d;color:#fff;">Q23</span>
+
+          </div>
+
+          <div id="hotelStrategyChart" class="chart" style="min-height:300px"></div>
+
+          
+
+          <div id="q24DrillPanel" class="q18-drill-panel" hidden>
+
+            <div class="q18-drill-head">
+
+              <span class="q18-drill-label" id="q24DrillLabel">Top 3 hotels for this strategy</span>
+
+              <button type="button" id="q24DrillClose" class="q18-drill-close">✕</button>
+
+            </div>
+
+            <div class="q18-drill-tiles" id="q24DrillTiles"></div>
+
+          </div>
+
+        </article>
+
+      </section>
+
+
+
+      <section class="card wide airline-slide2-card">
+
+        <div class="airline-slide2-header" id="hotelSlide2Header">
+
+          NPS | All Markets
+
+        </div>
+
+        <div class="airline-nps-row" id="hotelNpsScoreCards"></div>
+
+        <div class="airline-nps-legend">
+
+          <span class="nps-leg-scale">Likelihood to recommend selected hotel brand (0-10 scale)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#3db87e"></span> Promoters (9-10)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#ffb21a"></span> Passives (7-8)</span>
+
+          <span class="nps-leg-item"><span class="nps-leg-box" style="background:#ef476f"></span> Detractors (0-6)</span>
+
+        </div>
+
+      </section>
+
+
+
+      <section class="grid two">
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Accommodation Loyalty Programme</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#ff7f2a;color:#fff;">Q22a</span>
+
+          </div>
+
+          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">How important is being a hotel loyalty programme member when selecting a hotel?</p>
+
+          <div id="hotelLoyaltyChart" class="chart" style="min-height:260px"></div>
+
+        </article>
+
+
+
+        <article class="card airline-slide-card">
+
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+
+            <div><h2 style="color:#fff;font-size:15px;margin:0;">Most Valued Hotel Loyalty Programme Features</h2></div>
+
+            <span class="q9b-tab-badge" style="background:#b33e14;color:#fff;">Q22b</span>
+
+          </div>
+
+          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">Select up to 3 features — asked of loyalty programme members</p>
+
+          <div id="hotelLoyaltyFeatChart" class="chart" style="min-height:300px"></div>
+
+        </article>
+
+      </section>
+
+
+
+      <div style="display:none">
+
+        <div id="hotelKpis"></div>
+
+        <div id="hotelMap"></div>
+
+        <div id="hotelMapInsight"></div>
+
+        <div id="stayChart"></div>
+
+        <div id="hotelNpsGauge"></div>
+
+        <div id="hotelConsiderChart"></div>
+
+        <div id="hotelBrandChart"></div>
+
+        <div id="hotelSentimentMix"></div>
+
+        <div id="hotelFeaturesChart"></div>
+
+        <div id="hotelStarChart"></div>
+
+        <div id="budgetHistChart"></div>
+
+      </div>
+
+
+
+      <section class="tab-question-section">
+
+        <div class="tab-question-head">
+
+          <div><span class="section-tag">QUESTION DETAIL</span><h2>Hotel questions</h2><p>Accommodation, class, brand, NPS, considerations, loyalty, booking strategy and brand-level matrix.</p></div>
+
+          <div class="question-jump" id="hotelQuestionJump"></div>
+
+        </div>
+
+        <div class="tab-question-grid" id="hotelQuestionGrid"></div>
+
+      </section>
+
+    </section>
+
+
+
+    <!-- SEGMENTS -->
+
+    <section class="tab-panel" data-panel="segments" hidden>
+
+      <header class="segments-page-head">
+        <div class="segments-page-title">
+          <span class="section-tag">TRAVELER SEGMENTS</span>
+          <h2>Explore respondent profiles</h2>
+        </div>
+        <div id="segmentsRegionFilter" class="segments-filter-slot"></div>
+        <button class="reset-btn segments-reset-btn" id="segmentsResetBtn" type="button">↺ Reset</button>
+      </header>
+
+      <div class="segments-view-tabs" role="tablist" aria-label="Segment dimension">
+        <button type="button" id="segmentAgeTab" class="segments-view-tab active" role="tab" aria-selected="true" aria-controls="segmentAgeView" data-segment-view="age">Segment by Age</button>
+        <button type="button" id="segmentBudgetTab" class="segments-view-tab" role="tab" aria-selected="false" aria-controls="segmentBudgetView" data-segment-view="budget">Segment by Budget</button>
+      </div>
+
+      <section id="segmentAgeView" class="segments-view-panel" role="tabpanel" aria-labelledby="segmentAgeTab">
+        <div id="segmentAgeCohorts" class="segment-cohort-sticky"></div>
+        <div id="segmentAgeQuestions" class="segment-question-stack"></div>
+        <header class="segment-spend-section-heading"><h3>Expected spending change</h3></header>
+        <div id="segmentAgeSpend" class="segment-outcome-grid"></div>
+      </section>
+
+      <section id="segmentBudgetView" class="segments-view-panel" role="tabpanel" aria-labelledby="segmentBudgetTab" hidden>
+        <div id="segmentBudgetCohorts" class="segment-cohort-sticky"></div>
+        <div id="segmentBudgetQuestions" class="segment-question-stack"></div>
+        <header class="segment-spend-section-heading"><h3>Expected spending change</h3></header>
+        <div id="segmentBudgetSpend" class="segment-outcome-grid"></div>
+      </section>
+
+    </section>
+
+
+
+    <!-- MARKET SNAPSHOT -->
+
+
+
+    <!-- DESTINATION POV -->
+
+    <section class="tab-panel" data-panel="destination" hidden>
+
+
+
+      <!-- Banner (matches Source Overview style) -->
+
+      <div class="map-banner-bar" style="background:#221345;">
+
+        <span>The sentiment map shows scores for each destination market — click a country to view wave breakdown</span>
+
+      </div>
+
+
+
+      <!-- Map + right insight panel (same wrapper as Source Overview) -->
+
+      <section class="overview-map-wrapper overview-map-wrapper--wide" id="destMapWrapper">
+
+        <div class="overview-map-left" id="destMapLeft">
+
+          <div id="destSentimentMap" class="overview-map-container"></div>
+
+          <!-- Sentiment legend injected here by dest-sentiment-engine.js -->
+
+        </div>
+
+        <div class="overview-map-right" id="destMapInsight">
+
+          <!-- Insight panel injected by dest-sentiment-engine.js -->
+
+        </div>
+
+      </section>
+
+
+
+      <!-- Wave gauge cards injected below the map by dest-sentiment-engine.js -->
+
+
+
+      <!-- Destination/source score summary table — full width -->
+
+      <section style="margin-top:12px;display:grid;grid-template-columns:1fr;gap:14px;align-items:start;">
+
+
+
+        <!-- Polarity bar table -->
+
+        <div id="destSentimentTableWrap" style="background:#fff;border-radius:8px;border:1px solid #dcd5eb;overflow:hidden;box-shadow:0 2px 8px rgba(83,0,149,.06);">
+
+          <!-- Dark header -->
+
+          <div style="background:#221345;padding:10px 16px;">
+
+            <span id="destSourceTableTitle" style="color:#fff;font:600 12px Manrope;letter-spacing:.02em;">
+
+              Sentiment Polarity by Key Source Markets — Click row to filter map above
+
+            </span>
+
+          </div>
+
+          <!-- Column header row -->
+
+          <div id="destTableColHeader" style="display:grid;grid-template-columns:180px 1fr 1fr 1fr;background:#f8f5fc;border-bottom:2px solid #ede8f5;padding:6px 16px;font:700 11px Manrope;letter-spacing:.02em;">
+
+            <span style="color:#333;">Source Market</span>
+
+            <span style="color:#008a16;">Positive</span>
+
+            <span style="color:#7b6f86;">Neutral</span>
+
+            <span style="color:#d9003a;">Negative</span>
+
+          </div>
+
+          <!-- Rows injected here -->
+
+          <div id="destSourcePolarityTbody" style="overflow-y:auto;max-height:420px;"></div>
+
+        </div>
+
+
+
+      </section>
+
+
+
+      <!-- Hidden legacy divs to avoid JS errors from old code -->
+
+      <div style="display:none">
+
+        <div id="destBlockMap"></div>
+
+        <div id="destinationInsight"></div>
+
+        <div id="destinationKpis"></div>
+
+        <div id="destinationIntentChart"></div>
+
+        <div id="destinationStatusChart"></div>
+
+        <div id="destinationStageMix"></div>
+
+        <div id="destinationReachChart"></div>
+
+        <div id="destinationMarketTable"></div>
+
+        <div id="destPolarityCompareChart"></div>
+
+        <div id="destSourcePolarityTable"></div>
+
+        <div id="destSelectedCard"></div>
+
+      </div>
+
+    </section>
+
+
+
+  </main>
+
+
+
+  <div id="tooltip" class="tooltip"></div>
+
+
+
+  <script defer src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+  <script defer src="app-final.js?v=20261005_v19"></script>
+
+  <script defer src="chart-premium.js?v=20261006_v2"></script>
+
+  <script defer src="smart-filters.js?v=20261001_v5"></script>
+
+  <!-- Travel Pulse AI Chatbot -->
+  <script defer src="chatbot.js?v=20261001_v1"></script>
+
+  <footer class="app-footer app-footer--compact">
+
+    <div class="footer-content">
+
+      <div class="footer-brand">
+
+        <img src="escalent-logo.svg" alt="Escalent Logo" class="footer-logo" />
+
+        <span>Escalent Travel Pulse 2026</span>
+
+      </div>
+
+      <div class="footer-note" aria-live="polite">
+
+        <strong id="baseN">n=1,417</strong>
+
+        <span>Survey Base · Overall Sample</span>
+
+      </div>
+
+      <div class="footer-copy">
+
+        &copy; 2026 Escalent Inc. All rights reserved. | Travel Intent &amp; Behaviour Intelligence
+
+      </div>
+
+    </div>
+
+  </footer>
+
+</body>
+
+</html>

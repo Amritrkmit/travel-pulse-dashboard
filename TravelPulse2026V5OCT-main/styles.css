@@ -76,7 +76,7 @@ h1,h2,h3,h4,h5,h6,.headline h1,.brand-product,.brand-escalent,.section-tag,.tab,
 .topbar .sidebar-note{flex-shrink:0;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1}
 .topbar .sidebar-note small{color:rgba(255,255,255,.72);font-size:8.5px}
 .topbar .sidebar-note strong{font:800 18px var(--font-heading);color:#fff}
-.logout-btn{margin-left:4px}
+.logout-btn{margin-left:auto}
 
 /* ── TABS ────────────────────────────────────────────────────── */
 .tabs{
@@ -97,6 +97,8 @@ h1,h2,h3,h4,h5,h6,.headline h1,.brand-product,.brand-escalent,.section-tag,.tab,
   border-bottom-color:currentColor;
   font-weight:800
 }
+.sentiment-view-tabs{margin:0 70px 14px}
+@media (max-width:1350px){.sentiment-view-tabs{margin-right:12px;margin-left:12px}}
 
 /* ── FILTER BAR ──────────────────────────────────────────────── */
 .filters-bar{
@@ -329,7 +331,7 @@ body.hotel-active .tab-question-section{margin-top:10px}
     .market-profile-grid{grid-template-columns:repeat(2,1fr)}
   }
 .filter-title{
-  font-size:8.5px;font-weight:800;text-transform:uppercase;
+  font-size:12px;font-weight:800;text-transform:uppercase;
   color:var(--purple);margin:0 6px 0 0;flex:0 0 auto
 }
 .filter-actions{
@@ -345,7 +347,7 @@ body.hotel-active .tab-question-section{margin-top:10px}
   width:100%;min-height:28px;border:1px solid #d2c8e6;
   background:#f6f3fb;border-radius:3px;
   padding:4px 22px 4px 7px;color:var(--ink);
-  font-size:9px;font-weight:700;cursor:pointer;
+  font-size:12px;font-weight:700;cursor:pointer;
   text-align:left;position:relative;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
@@ -376,7 +378,7 @@ body.hotel-active .tab-question-section{margin-top:10px}
 .filter-note{font-size:8.5px;color:#8a7e98;white-space:nowrap}
 .reset-btn{
   border:1px solid #c8bedd;background:#fff;border-radius:3px;
-  padding:5px 10px;font-size:9px;font-weight:800;
+  padding:5px 10px;font-size:12px;font-weight:800;
   color:var(--purple);cursor:pointer
 }
 .reset-btn:hover{background:#f5f0fb;border-color:var(--orange)}
@@ -660,7 +662,7 @@ h2{font-family:Manrope,sans-serif;font-size:12px;margin:0;color:var(--ink);line-
 
 /* ── CARDS ───────────────────────────────────────────────────── */
 .grid{display:grid;gap:10px;margin-bottom:10px;align-items:stretch}
-.grid.two{grid-template-columns:1.35fr 1fr}
+.grid.two{grid-template-columns:1fr 1fr}
 #stagePlan .plan-timing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 #stagePlan .plan-timing-grid .card{height:480px}
 #stagePlan .card:has(> #planTripDurationPie){height:480px}
@@ -685,6 +687,10 @@ h2{font-family:Manrope,sans-serif;font-size:12px;margin:0;color:var(--ink);line-
   margin-bottom:6px;gap:8px;
   border-bottom:1px solid #ece6f5;padding-bottom:5px
 }
+.low-sample-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:6px;flex:0 0 22px;vertical-align:middle;cursor:help}
+.low-sample-badge img{display:block;width:100%;height:100%;object-fit:contain}
+.low-sample-tooltip{display:flex;align-items:center;gap:5px;margin-top:4px;color:#fff;font-size:9px;font-weight:700}
+.low-sample-tooltip .low-sample-badge{width:18px;height:18px;flex-basis:18px;margin:0}
 .card-head>div{min-width:0}
 .card-head h2{overflow-wrap:anywhere;font-size:12px}
 .mini-note{
@@ -695,6 +701,21 @@ h2{font-family:Manrope,sans-serif;font-size:12px;margin:0;color:var(--ink);line-
 .plan-budget-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .plan-budget-card{min-height:320px}
 .plan-budget-reasons-card{min-height:320px}
+.plan-share-wrap{width:100%;height:100%;min-height:220px;padding:18px 18px 12px;display:flex;flex-direction:column;justify-content:center;gap:22px}
+.plan-share-track{display:flex;width:100%;height:48px;overflow:hidden;border-radius:3px;background:#eeeaf5}
+.plan-share-segment{appearance:none;min-width:1px;height:100%;padding:0;border:0;border-right:2px solid #fff;color:#fff;font:800 11px var(--font-heading);cursor:pointer;transition:filter .14s ease,box-shadow .14s ease}
+.plan-share-segment:hover,.plan-share-segment.is-selected{filter:brightness(1.1);box-shadow:inset 0 0 0 2px rgba(35,11,84,.55)}
+.plan-share-legend{display:grid;gap:8px}
+.plan-share-legend-item{appearance:none;display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;padding:3px 5px;border:1px solid #e5dfeb;border-radius:4px;background:#fff;color:#3f3f3f;text-align:left;font:600 11px var(--font-body);cursor:pointer}
+.plan-share-legend-item:hover,.plan-share-legend-item.is-selected{background:#f4eff8;border-color:#bda9d2}
+.plan-share-legend-item strong{color:#530095;font:800 11px var(--font-heading)}
+.plan-share-swatch{width:11px;height:11px;border-radius:2px}
+.plan-share-label{min-width:0;overflow-wrap:anywhere}
+.plan-timing-chart.pp-host{height:100%;min-height:0;padding:10px 8px 0;overflow:visible}
+.plan-timing-chart .pp-bars{width:100%;height:auto}
+.plan-timing-chart .pp-ylab text{font-size:11px}
+.plan-timing-chart .pp-val{font-size:11px}
+.plan-timing-chart .axis text{font-size:9px}
 .plan-budget-reason-tabs{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
 .chart-type-picker{
   margin-left:auto;
@@ -1083,7 +1104,7 @@ body.segments-active #filtersBar{display:none!important}
 .login-submit:hover{background:var(--purple-2)}
 .login-submit span{margin-left:7px;font-size:14px}
 .login-footer{display:flex;justify-content:space-between;gap:10px;margin-top:22px;padding-top:13px;border-top:1px solid #ece6f5;color:#9a90a6;font-size:8px}
-.logout-btn{flex:0 0 auto;align-self:center;margin-left:10px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;border-radius:3px;padding:6px 10px;font:700 9px "DM Sans";cursor:pointer}
+.logout-btn{flex:0 0 auto;align-self:center;margin-left:auto;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;border-radius:3px;padding:6px 10px;font:700 9px "DM Sans";cursor:pointer}
 .logout-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.5)}
 
 /* ── SMART CASCADE FILTERS ───────────────────────────────────── */
@@ -4042,11 +4063,31 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .pp-nm{overflow-wrap:break-word;word-break:normal}
 .pp-legend{flex-basis:270px;max-width:270px}
 
+/* Keep Plan budget and duration pies beside their detail lists. */
+#stagePlan #planSegmentBudgetPie .pp-wrap,
+#stagePlan #planBookingLeadTimePie .pp-wrap,
+#stagePlan #planTravelPeriodPie .pp-wrap,
+#stagePlan #planSegmentBudgetPie .pp-wrap,
+#stagePlan #planTripDurationPie .pp-wrap {
+  justify-content: flex-start !important;
+}
+#stagePlan #planTripDurationPie .pp-wrap{flex-wrap:nowrap!important;justify-content:flex-start!important;gap:6px 8px}
+#stagePlan #planBookingLeadTimePie .pp-legend,
+#stagePlan #planTravelPeriodPie .pp-legend,
+#stagePlan #planSegmentBudgetPie .pp-legend,
+#stagePlan #planTripDurationPie .pp-legend{flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important;grid-template-columns:10px minmax(0,1fr) 42px!important;margin-left:0!important}
+@media(max-width:520px){
+  #stagePlan #planSegmentBudgetPie .pp-wrap,
+  #stagePlan #planTripDurationPie .pp-wrap{flex-wrap:wrap!important;justify-content:center!important}
+  #stagePlan #planSegmentBudgetPie .pp-legend,
+  #stagePlan #planTripDurationPie .pp-legend{flex:1 1 100%!important;width:100%!important}
+}
+
 /* v5: legend sized to its content (shared columns via subgrid) so label-to-percentage gap is minimal */
 .pp-legend{display:grid!important;grid-template-columns:10px minmax(0,max-content) auto;column-gap:8px;row-gap:1px;
   flex:0 1 auto!important;width:max-content;max-width:min(270px,100%)!important;align-content:center}
 .pp-row{display:grid;grid-template-columns:subgrid;grid-column:1/-1;gap:0 8px;padding:3px 6px}
-.pp-pc{min-width:42px;text-align:right}
+.pp-pc{min-width:42px;text-align:left}
 .pp-wrap{gap:6px 10px}
 @media (max-width:520px){.pp-legend{width:100%!important;max-width:none!important;grid-template-columns:10px minmax(0,1fr) auto}}
 .pp-legend{margin-left:14px;column-gap:10px}
@@ -4064,6 +4105,11 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .pp-word{font-family:Manrope,"DM Sans",Arial,sans-serif;font-weight:800;transition:opacity .15s,transform .15s;transform-box:fill-box;transform-origin:center}
 .pp-word.is-click{cursor:pointer}.pp-word:hover{transform:scale(1.08)}
 .pp-word.is-sel{text-decoration:underline;text-decoration-thickness:2px}
+.seg-parliament-svg{display:block;max-width:100%;height:auto;overflow:visible}
+.seg-parliament-category{transition:opacity .16s ease;pointer-events:none}
+.seg-parliament-category.is-muted{opacity:.24}
+.seg-parliament-dot{pointer-events:all;transition:r .14s ease,filter .14s ease}
+.seg-parliament-category.is-active .seg-parliament-dot{r:4.8px;filter:drop-shadow(0 1px 2px rgba(35,11,84,.36));stroke:#fff;stroke-width:1.25}
 .seg-viz{width:100%;min-height:0!important;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .seg-card-viz .segment-profile-body{padding:8px 10px}
 .seg-viz .pp-wrap,.seg-stack{width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0}
@@ -4080,7 +4126,14 @@ body.dashboard-is-loading main{transition:filter .15s ease,opacity .15s ease}
 .seg-ribbon-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seg-ribbon-pct{color:#0055A5}
 .seg-ribbon-svg{display:block;width:100px;overflow:visible}
-.seg-ribbon-flow,.seg-ribbon-stack{pointer-events:all}
+.seg-ribbon-band{transition:opacity .14s ease}
+.seg-ribbon-band.is-muted{opacity:.22}
+.seg-ribbon-flow{pointer-events:none;transform-box:fill-box;transform-origin:center;transition:transform .16s ease,opacity .16s ease,filter .16s ease}
+.seg-ribbon-band.is-active .seg-ribbon-flow{transform:scale(1.045);opacity:.9!important;filter:drop-shadow(0 2px 3px rgba(35,11,84,.28))}
+.seg-ribbon-stack{pointer-events:none;transition:transform .16s ease,filter .16s ease;transform-box:fill-box;transform-origin:center}
+.seg-ribbon-band.is-active .seg-ribbon-stack{transform:scaleX(1.3);filter:brightness(1.08)}
+.seg-ribbon-hit{cursor:pointer}
+.seg-ribbon-row.is-active{background:#f1ebf8;box-shadow:inset 3px 0 #530095}
 .pp-lab{font-size: 12px;font-weight: 600;fill:#3F3F3F}
 .pp-bub{font:800 10px Manrope,"DM Sans",sans-serif;fill:#fff;pointer-events:none}
 .pp-bub tspan:last-child{font-weight:900}
@@ -4121,6 +4174,8 @@ html,body,body *,button,input,select,textarea,svg text,svg tspan,.tooltip,.toolt
 
 /* v11: scrollable long bar charts (On-Site Bookings & Activities and any other tall bar chart) */
 #destExpChart.pp-host,#airlineConsiderChart.pp-host{max-height:340px;overflow-y:auto!important;overflow-x:hidden!important;padding-right:4px}
+#experienceChart.pp-host{min-height:0!important;max-height:260px;overflow-y:auto!important;overflow-x:hidden!important;padding-right:4px;scrollbar-gutter:stable}
+#planDecisionChart.pp-host{min-height:0!important;max-height:250px;overflow-y:auto!important;overflow-x:hidden!important;padding-right:4px;scrollbar-gutter:stable}
 
 /* v12: pipe separators between main tabs, orange Plan stage, softer pie palette */
 .tabs .tab{position:relative}
@@ -4137,4 +4192,43 @@ html,body,body *,button,input,select,textarea,svg text,svg tspan,.tooltip,.toolt
 button#segmentsResetBtn {
     height: 24px !important;
     margin-bottom: 12px !important;
+}
+
+/* FIX: draw the white country outline UNDER the fill so tiny islands (Greek isles, Canaries,
+   Japanese/Indonesian islands...) are not swallowed by the border stroke. */
+.world-land path, .market-layer path, .d-bg path, .d-fg path { paint-order: stroke fill; stroke-linejoin: round; }
+
+/* ── Maps fill the full width; height follows the map (no side gaps) ───────── */
+#airlineSentimentMap, #hotelSentimentMap, #destSentimentMap {
+  height: auto !important; min-height: 0 !important;
+  align-items: flex-start !important; padding: 8px 18px 0 !important;
+}
+#airlineSentimentMap svg, #hotelSentimentMap svg, #destSentimentMap svg {
+  width: 100% !important; height: auto !important;
+}
+.overview-map-container { min-height: 0 !important; }
+.overview-map-container svg { width: 100%; height: auto; display: block; }
+.tab-panel[data-panel="airline"] .hotel-sentiment-map-wrapper .overview-map-left,
+.tab-panel[data-panel="hotel"] .hotel-sentiment-map-wrapper .overview-map-left,
+.tab-panel[data-panel="destination"] #destMapLeft { min-height: 0 !important; }
+/* keep outlines hairline while zoomed in */
+.market-layer path, .d-bg path, .d-fg path { vector-effect: non-scaling-stroke; }
+
+:is(
+  #planTravelPeriodPie,
+  #planSegmentBudgetPie,
+  #planTripDurationPie,
+  #planBookingLeadTimePie
+) .pp-chart .pp-svg {
+  width: 340px;
+  height: 240px;
+}
+:is(
+#planBudgetDonut,
+#maritalChart,
+#childrenChart,
+#companionChart2
+) .pp-chart .pp-svg {
+  width: 240px;
+  height: 240px;
 }

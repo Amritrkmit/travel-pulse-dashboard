@@ -16,7 +16,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=20261006_v1" />
+  <link rel="stylesheet" href="styles.css?v=20261009_v10" />
 
   <link rel="stylesheet" href="chatbot.css?v=20261001_v1" />
 
@@ -48,15 +48,9 @@
 
       <div class="brand-copy">
 
-        <span class="brand-product">Travel Pulse</span>
+        <h1 class="brand-product">Travel Intelligence Dashboard</h1>
 
       </div>
-
-    </div>
-
-    <div class="headline">
-
-      <h1>Travel Intent &amp; Behaviour Intelligence | 2nd Wave 2026</h1>
 
     </div>
 
@@ -72,9 +66,7 @@
 
     <button class="tab active" data-tab="behaviour">Travel Behaviour</button>
 
-    <button class="tab" data-tab="overview">Source Market Overview</button>
-
-    <button class="tab" data-tab="destination">Destination Market Overview</button>
+    <button class="tab" data-tab="travel-sentiment">Travel Sentiment</button>
 
     <button class="tab" data-tab="airline">Airline Overview</button>
 
@@ -85,8 +77,6 @@
     
 
   </nav>
-
-
 
   <!-- FILTER BAR -->
 
@@ -108,13 +98,18 @@
 
 
 
+  <nav class="segments-view-tabs sentiment-view-tabs" id="travelSentimentTabs" role="tablist" aria-label="Travel sentiment views" hidden>
+    <button class="segments-view-tab sentiment-subtab active" type="button" id="travelSentimentSourceTab" data-sentiment-tab="overview" role="tab" aria-selected="true" aria-controls="overviewPanel">Source Market Overview</button>
+    <button class="segments-view-tab sentiment-subtab" type="button" id="travelSentimentDestinationTab" data-sentiment-tab="destination" role="tab" aria-selected="false" aria-controls="destinationPanel">Destination Market Overview</button>
+  </nav>
+
   <main>
 
 
 
     <!-- OVERVIEW / SOURCE OVERVIEW -->
 
-    <section class="tab-panel" data-panel="overview" hidden>
+    <section class="tab-panel" id="overviewPanel" data-panel="overview" role="tabpanel" aria-labelledby="travelSentimentSourceTab" hidden>
 
       <div class="map-banner-bar">
 
@@ -152,15 +147,13 @@
 
             <div><h2 id="socialThemeWordCloudTitle">Key Travel Associations — All Markets</h2></div>
 
-            <span class="mini-note">Wave 4 · Word size = mentions · Hover for count</span>
-
           </div>
 
           <div id="socialThemeWordCloud" class="chart" style="height:340px;min-height:0"></div>
 
         </article>
 
-        <article class="card" style="height:380px;">
+        <article class="card" style="height:380px; display:none;">
 
           <div class="card-head">
 
@@ -248,7 +241,7 @@
 
               <article class="card">
 
-                <div class="card-head"><div><h2>Main Purpose of Trip</h2></div></div>
+                <div class="card-head"><div><h2>Primary Purpose of the Trip</h2></div></div>
 
                 <div id="purposeChart" class="chart" style="min-height:280px"></div>
 
@@ -310,7 +303,7 @@
 
                 <div class="card-head"><div><h2>Booking Lead Time</h2></div></div>
 
-                <div id="planBookingLeadTimePie" class="chart donut-wrap" style="min-height:360px"></div>
+                <div id="planBookingLeadTimePie" class="chart plan-timing-chart" style="min-height:300px"></div>
 
               </article>
 
@@ -318,7 +311,7 @@
 
                 <div class="card-head"><div><h2>Planned Travel Period</h2></div></div>
 
-                <div id="planTravelPeriodPie" class="chart donut-wrap" style="min-height:360px"></div>
+                <div id="planTravelPeriodPie" class="chart plan-timing-chart" style="min-height:300px"></div>
 
               </article>
 
@@ -338,7 +331,7 @@
 
                 <div class="card-head"><div><h2>Trip Duration</h2></div></div>
 
-                <div id="planTripDurationPie" class="chart donut-wrap" style="min-height:320px"></div>
+                <div id="planTripDurationPie" class="chart plan-timing-chart" style="min-height:300px"></div>
 
               </article>
 
@@ -438,14 +431,13 @@
 
                 <div class="card-head" style="border-radius:8px 8px 0 0;margin:-20px -20px 16px;padding:14px 20px;">
 
-                  <div><span class="section-tag" style="color:rgba(255,255,255,0.65);">AI TOOL USAGE LIKELIHOOD DURING TRIP</span><h2 style="color:#fff;font-size:13px;">AI Tool Usage Likelihood During Trip</h2></div>
+                  <div><h2 style="color:#fff;font-size:13px;">AI Tool Usage Likelihood During Trip</h2></div>
 
                   <span class="q9b-tab-badge">Q9b</span>
 
                 </div>
 
-                <p style="font-size:10px;color:#6b6178;margin-bottom:14px;font-style:italic;">How likely are you to use an AI chatbot / AI travel app to help make decisions during your trip?</p>
-
+                
                 <div class="q9b-likelihood-layout">
 
                   <div class="q9b-pct-box" id="q9bPctBox"><div class="q9b-pct-num" id="q9bPctNum">—</div><div class="q9b-pct-lbl">Top 2 Box</div></div>
@@ -464,14 +456,13 @@
 
                 <div class="card-head" style="margin-bottom:10px;">
 
-                  <div><span class="section-tag" style="color:#530095;">AI TASKS</span><h2 style="color:#230B54;">AI Tasks Users Would Be Comfortable With</h2></div>
+                  <div><h2 style="color:#230B54;">AI Tasks Users Would Be Comfortable With</h2></div>
 
                   <span class="q9b-tab-badge">Q9c</span>
 
                 </div>
 
-                <p style="font-size:9.5px;color:#3F3F3F;margin-bottom:12px;font-style:italic;">Select up to 3 tasks &nbsp;|&nbsp; Base: likely AI users</p>
-
+                
                 <div id="aiTasksChart" class="chart" style="min-height:280px"></div>
 
               </article>
@@ -594,7 +585,7 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Preferred Airline</h2></div>
 
@@ -610,7 +601,7 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Strategies That Would Drive Airline Booking</h2></div>
 
@@ -644,7 +635,7 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Airline Loyalty Programme</h2></div>
 
@@ -652,8 +643,7 @@
 
           </div>
 
-          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">How important is being a member of a loyalty/frequent flyer programme when selecting an airline?</p>
-
+         
           <div id="airlineLoyaltyChart" class="chart" style="min-height:260px"></div>
 
         </article>
@@ -662,15 +652,13 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Most Valued Airline Loyalty Programme Features</h2></div>
 
             <span class="q9b-tab-badge" style="background:#fff;color:#f05a22;font-weight:800;">Q16b</span>
 
           </div>
-
-          <p class="chart-subtitle" style="font-size:11px;color:#7c728a;font-style:italic;margin:12px 16px 4px;">Select up to 3 features that matter most to you</p>
 
           <div id="airlineLoyaltyFeatChart" class="chart" style="min-height:360px"></div>
 
@@ -876,7 +864,7 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Importance of Accommodation Loyalty Programme</h2></div>
 
@@ -894,7 +882,7 @@
 
         <article class="card airline-slide-card">
 
-          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:12px 16px;margin:-1px -1px 0;">
+          <div class="card-head" style="color:#fff;border-radius:6px 6px 0 0;padding:8px 16px;">
 
             <div><h2 style="color:#fff;font-size:15px;margin:0;">Most Valued Hotel Loyalty Programme Features</h2></div>
 
@@ -1000,7 +988,7 @@
 
     <!-- DESTINATION POV -->
 
-    <section class="tab-panel" data-panel="destination" hidden>
+    <section class="tab-panel" id="destinationPanel" data-panel="destination" role="tabpanel" aria-labelledby="travelSentimentDestinationTab" hidden>
 
 
 
@@ -1132,9 +1120,11 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
-  <script defer src="app-final.js?v=20261005_v19"></script>
+  <script defer src="display-labels.js?v=20261009_v5"></script>
 
-  <script defer src="chart-premium.js?v=20261006_v2"></script>
+  <script defer src="app-final.js?v=20261009_v35"></script>
+
+  <script defer src="chart-premium.js?v=20261009_v23"></script>
 
   <script defer src="smart-filters.js?v=20261001_v5"></script>
 

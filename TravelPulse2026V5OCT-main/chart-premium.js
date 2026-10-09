@@ -57,6 +57,15 @@ window.showTip=function(e,d,raw){
   }else if(Number.isFinite(+v)){
     body=`<div class="tt-line">Value: <b>${Number.isInteger(+v)?(+v):(+v).toFixed(1)}</b></div>`;
   }
+  let sampleSize=[d.sampleSize,d.base,d.total,d.n].find(n=>n!==null&&n!==undefined&&Number.isFinite(Number(n)));
+  if(sampleSize==null){
+    const sampleText=String(v??"").match(/\bn\s*=\s*([\d,]+)/i)||String(v??"").match(/([\d,]+)\s+respondents?/i);
+    if(sampleText)sampleSize=Number(sampleText[1].replace(/,/g,""));
+  }
+  if(sampleSize==null&&(typeof currentTab==="undefined"||currentTab!=="social"))sampleSize=baseN();
+  if(Number.isFinite(Number(sampleSize))&&Number(sampleSize)>=0&&Number(sampleSize)<30&&typeof lowSampleBadgeMarkup==="function"){
+    body+=`<div class="low-sample-tooltip">${lowSampleBadgeMarkup(sampleSize)}<span>Small sample (n=${Math.floor(Number(sampleSize))})</span></div>`;
+  }
   el.innerHTML=`<div class="tt-title">${title}</div>${body}`;
   el.style.opacity=1;
   const w=el.offsetWidth,h=el.offsetHeight,pad=8;
@@ -88,7 +97,8 @@ window.surveyToggleFilter=function(key,label){ return window.toggleChartFilter(k
 
 /* extra selector -> filter-key mappings (chained onto the existing mapper) */
 const EXTRA_KEYS={maritalChart:"Marital Status",childrenChart:"Children",companionChart2:"travelCompanions",
-  planTripDurationPie:"TripDuration",planBookingLeadTimePie:"Q6",planTravelPeriodPie:"Q6a",packageTypeDonut:"Q8b"};
+  planTripDurationPie:"TripDuration",planBookingLeadTimePie:"Q6",planTravelPeriodPie:"Q6a",packageTypeDonut:"Q8b",
+  carrierChangeChart:"airlineCarrier"};
 const _cfk=window.chartFilterKey;
 window.chartFilterKey=function(sel){
   const id=String(sel).replace(/^#/,"");
@@ -154,7 +164,7 @@ function buildDefs(svg,uid,colors,mild){
 const PIE_SPECS=(function(){
   const norm=s=>String(s).replace(/â€“|–/g,"-");
   const timing=l=>clean(l).replace(/â€“|–/g,"-").replace(/\s+before the trip$/i,"").replace(/\s+from now$/i,"")
-    .replace(/\bmonths?\b/gi,"mo").replace(/^Less than 1 mo$/i,"<1 mo").replace(/^1 year or more$/i,"1+ year").replace(/^Canâ€™t say$/i,"Can't say");
+    .replace(/^Less than 1 month$/i,"<1 month").replace(/^1 year or more$/i,"1+ year").replace(/^Canâ€™t say$/i,"Can't say");
   return {
     "#maritalChart":{key:"Marital Status",get:r=>clean(r["Marital Status"]||"")},
     "#childrenChart":{key:"Children",get:r=>clean(r.Children||"")},
@@ -198,7 +208,8 @@ function premiumPie(sel,input,opt,selectedList){
   el.classList.add("pp-host");
   const colors=assignColors(rows).map(c=>d3.interpolateRgb(c,"#ffffff")(.3)).map(c=>d3.color(c).formatHex());   /* softer, lighter pie palette */
   const uid=uidOf(sel);
-  const R=sel==="#cabinChart"?Math.min(96,Math.max(78,(w-170)*.28)):Math.max(44,Math.min(58,(w-24)*.2)), padX=40, S={w:2*(R+padX),h:2*R+46};
+  const isLargerPlanPie=sel==="#planSegmentBudgetPie"||sel==="#planTripDurationPie";
+  const R=sel==="#cabinChart"?Math.min(96,Math.max(78,(w-170)*.28)):isLargerPlanPie?Math.min(64,Math.max(54,(w-24)*.22)):Math.max(44,Math.min(58,(w-24)*.2)), padX=40, S={w:2*(R+padX),h:2*R+46};
   const cx=S.w/2, cy=S.h/2;
   let wrap,svg,legend;
   if(live){ wrap=state.wrap; svg=state.svg; legend=state.legend; svg.selectAll("g.pp-main").remove(); legend.selectAll("*").remove(); }
@@ -222,7 +233,15 @@ function premiumPie(sel,input,opt,selectedList){
   sg.append("path").attr("class","pp-top").attr("d",l=>arc(l.a)).attr("fill",l=>`url(#${uid}-${colors[l.i].slice(1)})`)
     .attr("stroke","#fff").attr("stroke-width",1.4);
   const total=rows.reduce((s,d)=>s+(d.count!=null?d.count:0),0);
-  if(rows.every(d=>d.count!=null)&&total>0){
+  const centerImage=sel==="#maritalChart"?"marital-status-rings.svg":sel==="#childrenChart"?"children-household.svg?v=20261009_v4":sel==="#companionChart2"?"trip-companion-people.svg?v=20261009_v2":null;
+  if(centerImage){
+    g.append("image")
+      .attr("href",centerImage)
+      .attr("x",-27).attr("y",-27)
+      .attr("width",54).attr("height",54)
+      .attr("preserveAspectRatio","xMidYMid meet")
+      .attr("aria-label",sel==="#maritalChart"?"Interlocking rings":"Family household");
+  }else if(rows.every(d=>d.count!=null)&&total>0){
     g.append("text").attr("class","pp-center-n").attr("text-anchor","middle").attr("y",1).text(nfmt(total));
     g.append("text").attr("class","pp-center-s").attr("text-anchor","middle").attr("y",13).text(opt.center&&String(opt.center).length<=10?String(opt.center):"responses");
   }
@@ -311,7 +330,7 @@ window.behaviourDemographicPie3D=function(sel,data,opt){
     src.forEach(r=>{const v=spec.get(r); if(v) counts.set(v,(counts.get(v)||0)+1);});
     const tot=[...counts.values()].reduce((a,b)=>a+b,0)||1;
     const order=sel==="#planBookingLeadTimePie"
-      ?["<1 mo","1–3 mo","3–6 mo","6–9 mo","9–12 mo","1+ year"]
+      ?["<1 month","1–3 months","3–6 months","6–9 months","9–12 months","1+ year"]
       :sel==="#planTripDurationPie"
         ?["1–2 nights","3–4 nights","5–6 nights","7–8 nights","9–10 nights","10+ nights"]
         :null;
@@ -337,7 +356,12 @@ window.renderPreferenceBars=function(containerId,rows,fields){
   src.forEach(row=>{const l=fields.map(f=>clean(row[f])).find(Boolean); if(l) counts.set(l,(counts.get(l)||0)+1);});
   const answered=[...counts.values()].reduce((a,b)=>a+b,0);
   const items=[...counts].map(([label,count])=>({label,count,value:answered?count/answered:0,total:answered}))
-    .sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
+    .sort((a,b)=>{
+      const aIsOthers=dispLabel(a).trim().toLowerCase()==="others";
+      const bIsOthers=dispLabel(b).trim().toLowerCase()==="others";
+      if(aIsOthers!==bIsOthers)return aIsOthers?1:-1;
+      return b.count-a.count||a.label.localeCompare(b.label);
+    });
   const selVal=key?chartFilters[key]:null;
   const sig=JSON.stringify([items.map(i=>[i.label,i.count]),selVal]);
   if(el.__pref===sig&&el.firstChild) return;
@@ -369,27 +393,53 @@ function wrap2(text,cpl){
 }
 const valTxt=d=>d.label==="NPS Score"?d3.format("+.0f")(d.value):fmt(d.value);
 const BAR_BLUE="#530095";
+const AIRLINE_LOGO_CODES={
+  emirates:"EK",qatarairways:"QR",britishairways:"BA",singaporeairlines:"SQ",lufthansa:"LH",
+  airfrance:"AF",ryanair:"FR",deltaairlines:"DL",turkishairlines:"TK",americanairlines:"AA",
+  saudia:"SV",airchina:"CA",iberia:"IB",airindia:"AI",cathaypacific:"CX",koreanair:"KE",
+  chinaeastern:"MU",unitedairlines:"UA",aeroflot:"SU",aircanada:"AC",klm:"KL",
+  malaysiaairlines:"MH",indigo:"6E",royaljordanian:"RJ",kenyaairways:"KQ",garudaindonesia:"GA",
+  southafricanairways:"SA",qantas:"QF",thaiairways:"TG",easyjet:"U2",egyptair:"MS",
+  chinasouthern:"CZ",swiss:"LX",gulfair:"GF",japanairlines:"JL",etihadairways:"EY",
+  virginatlantic:"VS",airarabia:"G9",ana:"NH",aerlingus:"EI",itaairways:"AZ",
+  latamairlines:"LA",thaiairasia:"FD",airasia:"AK",asianaairlines:"OZ",vueling:"VY",
+  transavia:"HV",virginaustralia:"VA",scoot:"TR",pegasus:"PC",westjet:"WS",aireuropa:"UX",
+  eurowings:"EW",flysafair:"FA",airpeace:"P4",tapairportugal:"TP",azul:"AD",lionair:"JT",
+  flydubai:"FZ",gol:"G3",jetstarairways:"JQ",batikair:"ID",belavia:"B2",
+  pakistaninternationalairlines:"PK",flynas:"XY",sunexpress:"XQ"
+};
+const airlineLogoCode=value=>AIRLINE_LOGO_CODES[String(value??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"")]||null;
 function barColor(d,i){return semColor(filtLabel(d))||BAR_BLUE;}
 
 window.horizontalBars=function(sel,data,opt){
   opt=opt||{};
   const el=document.querySelector(sel); if(!el) return;
-  const ranked=[...(data||[])].filter(d=>Number.isFinite(+d.value)).sort((a,b)=>b.value-a.value);
+  if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
+  const ranked=[...(data||[])].filter(d=>Number.isFinite(+d.value)).sort((a,b)=>{
+    if(opt.preserveOrder)return (data||[]).indexOf(a)-(data||[]).indexOf(b);
+    if(opt.othersLast){
+      const aIsOthers=dispLabel(a).trim().toLowerCase()==="others";
+      const bIsOthers=dispLabel(b).trim().toLowerCase()==="others";
+      if(aIsOthers!==bIsOthers)return aIsOthers?1:-1;
+    }
+    return b.value-a.value;
+  });
   const root=d3.select(el);
   if(!ranked.length){root.selectAll("*").remove();el.__bars=null;root.append("div").attr("class","empty-chart").text("No data available for this selection.");return;}
   const w=Math.max(280,Math.floor(el.clientWidth||320));
   const key=opt.disableFilter?null:window.chartFilterKey(sel), selVal=key?chartFilters[key]:null, bn=baseN();
   const clickable=!!key||typeof opt.onClick==="function";
-  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,clickable,opt.color]);
+  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,clickable,opt.color,!!opt.showCountryFlags,!!opt.showAirlineLogos,!!opt.othersLast,!!opt.preserveOrder,!!opt.valueFormat,!!opt.axisFormat]);
   if(el.__bars&&el.__bars.sig===sig&&el.contains(el.__bars.svgNode)) return;
   const names=ranked.map(dispLabel), cpx=5.7;
   const maxLen=d3.max(names,s=>s.length)||10;
   const lwReq=Number.isFinite(+opt.labelWidth)?+opt.labelWidth:Math.max(110,Math.min(maxLen*cpx+14,260));
   const lw=Math.min(lwReq,Math.floor(w*.46));
+  const logoSize=opt.showAirlineLogos?32:0;
   const m={t:6,r:46,b:24,l:lw}, iw=Math.max(40,w-m.l-m.r);
   const rowH=Math.max(30,Math.min(38,((opt.height||0)-30)/ranked.length||30));
   const ih=ranked.length*rowH, h=m.t+ih+m.b;
-  const cpl=Math.max(8,Math.floor((lw-14)/cpx));
+  const cpl=Math.max(8,Math.floor((lw-14-(opt.showAirlineLogos?logoSize+18:opt.showCountryFlags?24:0))/cpx));
   let svg=el.__bars&&el.contains(el.__bars.svgNode)?d3.select(el.__bars.svgNode):null;
   if(!svg){ root.selectAll("*").remove(); svg=root.append("svg").attr("class","pp-bars"); }
   svg.selectAll("*").remove();
@@ -409,17 +459,38 @@ window.horizontalBars=function(sel,data,opt){
     .attr("width",d=>Math.max(2,x(Math.max(0,+d.value)))).attr("fill",(d,i)=>shade(cols[i],-.9)).attr("opacity",.5);
   rowsG.append("rect").attr("class","pp-top").attr("x",0).attr("y",(d,i)=>y(i)+off).attr("height",bh).attr("rx",rx)
     .attr("width",d=>Math.max(2,x(Math.max(0,+d.value)))).attr("fill",(d,i)=>opt.gradient?`url(#${uid}-${cols[i].slice(1)})`:cols[i]);
-  rowsG.append("text").attr("class","pp-val").attr("x",d=>Math.min(iw+m.r-34,x(Math.max(0,+d.value))+7)).attr("y",(d,i)=>y(i)+off+bh/2).attr("dy","0.35em").text(valTxt);
+  rowsG.append("text").attr("class","pp-val").attr("x",d=>Math.min(iw+m.r-34,x(Math.max(0,+d.value))+7)).attr("y",(d,i)=>y(i)+off+bh/2).attr("dy","0.35em")
+    .text(d=>typeof opt.valueFormat==="function"?opt.valueFormat(d):valTxt(d));
   /* wrapped y labels (max 2 lines, full text in title) */
-  const lg=g.append("g").attr("class","pp-ylab").selectAll("text").data(ranked).join("text").attr("x",-9).attr("text-anchor","end")
+  const labelEndX=opt.showAirlineLogos?-(logoSize+16):opt.showCountryFlags?-34:-9;
+  const lg=g.append("g").attr("class","pp-ylab").selectAll("text").data(ranked).join("text").attr("x",labelEndX).attr("text-anchor","end")
     .attr("y",(d,i)=>y(i)+off+bh/2).classed("is-click",clickable)
     .style("font-weight",d=>selVal!=null&&selVal===filtLabel(d)?800:null);
   lg.each(function(d,i){
     const t=d3.select(this), r=wrap2(names[i],cpl), n=r.lines.length;
-    r.lines.forEach((ln,k)=>t.append("tspan").attr("x",-9).attr("dy",k===0?(n===1?"0.35em":"-0.2em"):"1.12em").text(ln));
+    r.lines.forEach((ln,k)=>t.append("tspan").attr("x",labelEndX).attr("dy",k===0?(n===1?"0.35em":"-0.2em"):"1.12em").text(ln));
     t.append("title").text(names[i]);
   });
-  g.append("g").attr("class","axis").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(4).tickFormat(fmt)).call(a=>a.select(".domain").remove());
+  if(opt.showCountryFlags&&typeof window.TravelPulseDisplayLabels?.countryCode==="function"){
+    const flags=ranked.map((d,index)=>({index,code:window.TravelPulseDisplayLabels.countryCode(d.displayLabel||d.label)})).filter(d=>d.code);
+    g.append("g").attr("class","pp-country-flags").selectAll("image").data(flags).join("image")
+      .attr("href",d=>`assets/flags/${d.code}.svg`)
+      .attr("x",-27).attr("y",d=>y(d.index)+off+(bh-12)/2)
+      .attr("width",18).attr("height",12)
+      .attr("preserveAspectRatio","xMidYMid slice")
+      .attr("role","img")
+      .attr("aria-label",d=>`${names[d.index]} flag`);
+  }
+  if(opt.showAirlineLogos){
+    const marks=g.append("g").attr("class","pp-airline-logos").selectAll("g").data(ranked).join("g")
+      .attr("transform",(d,i)=>`translate(-${logoSize+8},${y(i)+off+(bh-logoSize)/2})`)
+      .attr("role","img").attr("aria-label",d=>`${dispLabel(d)} logo`);
+    marks.append("image").attr("class","pp-airline-logo-image").attr("href",d=>{
+      const code=airlineLogoCode(d.displayLabel||d.label);
+      return code?`assets/Airline-logo/${code}.png`:null;
+    }).attr("width",logoSize).attr("height",logoSize).attr("preserveAspectRatio","xMidYMid meet").on("error",function(){this.style.opacity="0";});
+  }
+  g.append("g").attr("class","axis").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x).ticks(4).tickFormat(opt.axisFormat||fmt)).call(a=>a.select(".domain").remove());
   /* hover/click on the whole row hit-area */
   g.append("g").selectAll("rect.pp-hit").data(ranked).join("rect").attr("class","pp-hit").attr("x",-m.l).attr("y",(d,i)=>y(i)-y.step()*y.paddingInner()/2)
     .attr("width",m.l+iw+m.r).attr("height",y.step()).attr("fill","transparent").classed("is-click",clickable)
@@ -427,6 +498,50 @@ window.horizontalBars=function(sel,data,opt){
     .on("mouseleave",(e,d)=>{rowsG.filter(r=>r===d).classed("is-hov",false);window.hideTip();})
     .on("click",(e,d)=>{e.stopPropagation();if(opt.onClick)opt.onClick(d);else if(key)window.toggleChartFilter(key,filtLabel(d));});
   el.__bars={sig,svgNode:svg.node()}; el.classList.add("pp-host");
+};
+
+window.stackedShareBar=function(sel,data,opt={}){
+  const el=document.querySelector(sel); if(!el)return;
+  if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
+  const rows=(data||[]).filter(d=>Number.isFinite(+d.value)&&+d.value>=0);
+  const root=d3.select(el); root.selectAll("*").remove();
+  if(!rows.length){root.append("div").attr("class","empty-chart").text("No responses available.");return;}
+  const totalShare=d3.sum(rows,d=>+d.value)||1;
+  const totalCount=d3.sum(rows,d=>+d.count||0);
+  const colors=opt.colors||["#713CAC","#00A99E","#F7A83B"];
+  const key=opt.filterKey||window.chartFilterKey(sel);
+  const selected=opt.selected|| (key?chartFilters[key]:"") || "";
+  const activate=(event,d)=>{
+    event.stopPropagation();
+    if(opt.onClick)opt.onClick(d);
+    else if(key)window.toggleChartFilter(key,filtLabel(d));
+  };
+  const wrap=root.append("div").attr("class","plan-share-wrap pp-host");
+  const track=wrap.append("div").attr("class","plan-share-track").attr("role","group").attr("aria-label",opt.category||"Share distribution");
+  const segments=track.selectAll("button.plan-share-segment").data(rows).join("button")
+    .attr("type","button").attr("class","plan-share-segment")
+    .style("width",d=>`${Math.max(0,+d.value/totalShare*100)}%`)
+    .style("background",(d,i)=>d.color||colors[i%colors.length])
+    .classed("is-selected",d=>selected===d.label)
+    .attr("aria-pressed",d=>String(selected===d.label))
+    .attr("aria-label",d=>`${dispLabel(d)}: ${pctTxt(+d.value/totalShare)}`)
+    .attr("title",d=>`${dispLabel(d)} · ${pctTxt(+d.value/totalShare)}`)
+    .text(d=>+d.value/totalShare>=.12?pctTxt(+d.value/totalShare):"")
+    .on("mousemove",(event,d)=>window.showTip(event,{...d,value:+d.value/totalShare,total:d.total??totalCount}))
+    .on("mouseleave",()=>window.hideTip())
+    .on("click",activate);
+  const legend=wrap.append("div").attr("class","plan-share-legend");
+  const items=legend.selectAll("button.plan-share-legend-item").data(rows).join("button")
+    .attr("type","button").attr("class","plan-share-legend-item")
+    .classed("is-selected",d=>selected===d.label)
+    .attr("aria-pressed",d=>String(selected===d.label))
+    .on("mousemove",(event,d)=>window.showTip(event,{...d,value:+d.value/totalShare,total:d.total??totalCount}))
+    .on("mouseleave",()=>window.hideTip())
+    .on("click",activate);
+  items.append("span").attr("class","plan-share-swatch").style("background",(d,i)=>d.color||colors[i%colors.length]);
+  items.append("span").attr("class","plan-share-label").text(d=>dispLabel(d));
+  items.append("strong").text(d=>pctTxt(+d.value/totalShare));
+  el.classList.add("pp-host");
 };
 
 window.verticalBars=function(sel,data,opt){
@@ -545,14 +660,15 @@ const _hb=window.horizontalBars;
 window.horizontalBars=function(sel,data,opt){ if(sel==="#inspireDestChart") data=destRows(data); return _hb(sel,data,opt); };
 
 /* ---------- Segments tab: a different visual per question ---------- */
-const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"ribbon",Q8b:"waffle",Q14:"waffle",Q5:"rose",Q8:"ribbon",Q3:"rose"};
+const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"ribbon",Q8b:"parliament",Q14:"waffle",Q5:"rose",Q8:"ribbon",Q3:"rose"};
 const SEG_SOFT=SEG_COL.map(c=>d3.color(d3.interpolateRgb(c,"#ffffff")(.34)).formatHex());
+const PARLIAMENT_COLORS=["#FF8C00","#FFD34D","#5287F5","#A8CCF9","#A5A5AD"];
 const LIGHT_PURPLE=SEG_SOFT[0];
 const tipOf=(e,d)=>window.showTip(e,{label:d.label,value:d.value,count:d.count,total:d.base});
-function legendHTML(host,rows){
+function legendHTML(host,rows,colors=SEG_SOFT){
   const lg=host.append("div").attr("class","pp-legend seg-legend");
   const r=lg.selectAll("div.pp-row").data(rows).join("div").attr("class","pp-row").attr("title",d=>dispLabel(d));
-  r.append("span").attr("class","pp-sw").style("background",(d,i)=>SEG_SOFT[i%SEG_SOFT.length]);
+  r.append("span").attr("class","pp-sw").style("background",(d,i)=>colors[i%colors.length]);
   r.append("span").attr("class","pp-nm").text(d=>dispLabel(d));
   r.append("span").attr("class","pp-pc").text(d=>pctTxt(d.value));
 }
@@ -560,18 +676,24 @@ const SEGVIZ={
   bars(el,rows,w){ window.horizontalBars("#"+el.id,rows.map(d=>({...d,total:d.base})),{color:LIGHT_PURPLE,gradient:true,height:rows.length*32+30,labelWidth:Math.min(150,Math.floor(w*.42))}); },
   donut(el,rows){ premiumPie("#"+el.id,rows.map(d=>({...d,total:d.base})),{category:"Segment answers",center:"answers"},[]); },
   cloud(el,rows,w){ wordCloud(el,rows.map(d=>({...d,filterLabel:d.label})),{h:230,max:14,maxFont:26,minFont:11}); },
-  ribbon(el,rows,w){
+  ribbon(el,rows,w,opt={}){
     const colors=["#0055A5","#00A99D","#FF5635","#6A3E9B","#E3A100","#368A58","#C44575"], rowH=30, headerH=22, height=rows.length*rowH, svgW=100;
     const wrap=d3.select(el).append("div").attr("class","seg-ribbon");
     const layout=wrap.append("div").attr("class","seg-ribbon-layout");
     const table=layout.append("div").attr("class","seg-ribbon-table").style("--ribbon-rows",rows.length);
     const questionKey=(el.closest(".segment-question-section")?.getAttribute("aria-label")||"").split(" ")[0];
     const head=table.append("div").attr("class","seg-ribbon-head");
-    head.append("span").text(questionKey==="Q8"?"CHANNEL":"PURPOSE"); head.append("span").text("SHARE");
-    const line=table.selectAll("div.seg-ribbon-row").data(rows).join("div").attr("class","seg-ribbon-row");
+    head.append("span").text(opt.header||(questionKey==="Q8"?"CHANNEL":"PURPOSE")); head.append("span").text("SHARE");
+    const activate=(event,row)=>{
+      if(!opt.onClick&&!opt.filterKey)return;
+      event.stopPropagation();
+      if(opt.onClick)opt.onClick(row);
+      else window.toggleChartFilter(opt.filterKey,row.filterLabel||row.label);
+    };
+    const line=table.selectAll("div.seg-ribbon-row").data(rows).join("div").attr("class","seg-ribbon-row")
+      .style("cursor",opt.onClick||opt.filterKey?"pointer":"default");
     line.append("span").attr("class","seg-ribbon-name").attr("title",d=>d.label).text(d=>d.label);
     line.append("span").attr("class","seg-ribbon-pct").text(d=>pctTxt(d.value));
-    line.on("mousemove",tipOf).on("mouseleave",()=>window.hideTip());
 
     const total=d3.sum(rows,d=>d.count)||1;
     let cursor=0;
@@ -581,13 +703,18 @@ const SEGVIZ={
       return {data:d,index:i,y0,y1,color:colors[i%colors.length]};
     });
     const svg=layout.append("svg").attr("class","seg-ribbon-svg").attr("viewBox",`0 0 ${svgW} ${height+headerH}`).style("height",`${height+headerH}px`).attr("aria-hidden","true");
-    svg.selectAll("path.seg-ribbon-flow").data(bands).join("path").attr("class","seg-ribbon-flow")
-      .attr("d",(d,i)=>{const y0=i*rowH+headerH,y1=y0+rowH,dy0=d.y0+headerH,dy1=d.y1+headerH,x1=svgW*.36,x2=svgW*.58;return `M0,${y0} C${x1},${y0} ${x2},${dy0} ${svgW-8},${dy0} L${svgW-8},${dy1} C${x2},${dy1} ${x1},${y1} 0,${y1} Z`;})
-      .attr("fill",d=>d.color).attr("opacity",.58)
-      .on("mousemove",(event,d)=>tipOf(event,d.data)).on("mouseleave",()=>window.hideTip());
-    svg.selectAll("rect.seg-ribbon-stack").data(bands).join("rect").attr("class","seg-ribbon-stack")
-      .attr("x",svgW-8).attr("y",d=>d.y0+headerH).attr("width",8).attr("height",d=>Math.max(0,d.y1-d.y0))
+    const ribbonPath=(d,i)=>{const y0=i*rowH+headerH,y1=y0+rowH,dy0=d.y0+headerH,dy1=d.y1+headerH,x1=svgW*.36,x2=svgW*.58;return `M0,${y0} C${x1},${y0} ${x2},${dy0} ${svgW-8},${dy0} L${svgW-8},${dy1} C${x2},${dy1} ${x1},${y1} 0,${y1} Z`;};
+    const bandGroups=svg.selectAll("g.seg-ribbon-band").data(bands).join("g").attr("class","seg-ribbon-band");
+    bandGroups.append("path").attr("class","seg-ribbon-flow").attr("d",ribbonPath).attr("fill",d=>d.color).attr("opacity",.58);
+    bandGroups.append("rect").attr("class","seg-ribbon-stack").attr("x",svgW-8).attr("y",d=>d.y0+headerH).attr("width",8).attr("height",d=>Math.max(0,d.y1-d.y0))
       .attr("fill",d=>d.color).attr("stroke","#fff").attr("stroke-width",.7);
+    bandGroups.append("path").attr("class","seg-ribbon-hit").attr("d",ribbonPath).attr("fill","transparent").attr("pointer-events","fill")
+      .on("mouseenter",(event,d)=>{bandGroups.classed("is-active",band=>band.index===d.index).classed("is-muted",band=>band.index!==d.index);line.classed("is-active",row=>row===d.data);tipOf(event,d.data);})
+      .on("mousemove",(event,d)=>tipOf(event,d.data))
+      .on("click",(event,d)=>activate(event,d.data))
+      .on("mouseleave",()=>{bandGroups.classed("is-active",false).classed("is-muted",false);line.classed("is-active",false);window.hideTip();});
+    line.on("mouseenter",(event,row)=>{const band=bands.find(item=>item.data===row);if(!band)return;bandGroups.classed("is-active",item=>item.index===band.index).classed("is-muted",item=>item.index!==band.index);line.classed("is-active",item=>item===row);tipOf(event,row);})
+      .on("mousemove",tipOf).on("click",activate).on("mouseleave",()=>{bandGroups.classed("is-active",false).classed("is-muted",false);line.classed("is-active",false);window.hideTip();});
   },
   lollipop(el,rows,w){
     const lw=Math.min(Math.floor(w*.5),170), rh=32, h=rows.length*rh+8, iw=w-lw-52, cpl=Math.max(8,Math.floor((lw-10)/5.4));
@@ -654,6 +781,66 @@ const SEGVIZ={
       g.append("text").attr("class","pp-lab").attr("x",-6).attr("y",-(ro-rw/2)).attr("dy","0.35em").attr("text-anchor","end").style("font-size","9px").text(txt).append("title").text(d.label+" · "+fmt(d.value));
     });
   },
+  parliament(el,rows,w){
+    const total=d3.sum(rows,d=>Math.max(0,+d.value||0));
+    if(!rows.length||!total)return;
+    const allocation=rows.map((row,index)=>{
+      const exact=100*Math.max(0,+row.value||0)/total, seats=Math.floor(exact);
+      return {row,index,seats,remainder:exact-seats};
+    });
+    let remaining=100-d3.sum(allocation,d=>d.seats);
+    [...allocation].sort((a,b)=>b.remainder-a.remainder).slice(0,remaining).forEach(seat=>seat.seats++);
+    allocation.filter(seat=>seat.seats===0&&seat.remainder>0).forEach(seat=>{
+      const donor=[...allocation].filter(other=>other.seats>1).sort((a,b)=>a.remainder-b.remainder)[0];
+      if(donor){donor.seats--;seat.seats++;}
+    });
+    const radius=Math.min(102,w*.43), step=(radius-8)/9, baseline=radius+5, height=Math.ceil(baseline+6);
+    const positions=[];
+    for(let ring=0;ring<10;ring++){
+      const count=ring*2+1, ringRadius=8+ring*step;
+      for(let seat=0;seat<count;seat++){
+        const progress=count===1?.5:seat/(count-1), angle=-Math.PI/2+Math.PI*progress;
+        positions.push({progress,ring,seat,x:w/2+ringRadius*Math.sin(angle),y:baseline-ringRadius*Math.cos(angle)});
+      }
+    }
+    positions.sort((a,b)=>a.progress-b.progress||a.ring-b.ring||a.seat-b.seat);
+    let seatIndex=0;
+    allocation.forEach(seat=>{for(let i=0;i<seat.seats;i++)positions[seatIndex++].category=seat.index;});
+    const wrap=d3.select(el).append("div").attr("class","pp-wrap seg-wrap");
+    const svg=wrap.append("div").attr("class","pp-chart").append("svg").attr("class","pp-svg seg-parliament-svg")
+      .attr("width",w).attr("height",height).attr("viewBox",`0 0 ${w} ${height}`).attr("role","img").attr("aria-label","Package versus independent booking parliament chart");
+    const groups=svg.append("g").selectAll("g.seg-parliament-category").data(rows).join("g")
+      .attr("class","seg-parliament-category").attr("role","group").attr("aria-label",d=>`${d.label}: ${pctTxt(d.value)}`);
+    const dotRadius=Math.max(2.8,Math.min(4,step*.39));
+    groups.each(function(row,index){
+      d3.select(this).selectAll("circle.seg-parliament-dot").data(positions.filter(dot=>dot.category===index)).join("circle")
+        .attr("class","seg-parliament-dot").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",dotRadius)
+        .attr("fill",PARLIAMENT_COLORS[index%PARLIAMENT_COLORS.length]).attr("stroke","#fff").attr("stroke-width",1);
+    });
+    let activeCategory=-1;
+    const clearActive=()=>{
+      if(activeCategory<0)return;
+      activeCategory=-1;
+      groups.classed("is-active",false).classed("is-muted",false);
+      window.hideTip();
+    };
+    svg.on("mousemove",function(event){
+      const [px,py]=d3.pointer(event,this), dx=px-w/2, up=baseline-py, distance=Math.hypot(dx,up);
+      if(up < -dotRadius||distance < 8-dotRadius||distance > radius+dotRadius){clearActive();return;}
+      const progress=(Math.atan2(dx,up)+Math.PI/2)/Math.PI;
+      let cumulative=0,category=allocation.length-1;
+      for(let i=0;i<allocation.length;i++){
+        cumulative+=allocation[i].seats/100;
+        if(progress<=cumulative){category=i;break;}
+      }
+      if(category!==activeCategory){
+        activeCategory=category;
+        groups.classed("is-active",(_,i)=>i===category).classed("is-muted",(_,i)=>i!==category);
+      }
+      tipOf(event,allocation[category].row);
+    }).on("mouseleave",clearActive);
+    legendHTML(wrap,rows,PARLIAMENT_COLORS);
+  },
   waffle(el,rows,w){
     const wrap=d3.select(el).append("div").attr("class","pp-wrap seg-wrap"), cell=15, gap=2, S=10*(cell+gap);
     const tot=d3.sum(rows,d=>d.value)||1, cells=[]; let acc=0;
@@ -684,6 +871,18 @@ const SEGVIZ={
     });
     g.on("mousemove",(e,d)=>tipOf(e,d.data)).on("mouseleave",()=>window.hideTip());
   }
+};
+window.ribbonChart=function(sel,data,opt={}){
+  const el=typeof sel==="string"?document.querySelector(sel):sel;
+  if(!el)return;
+  if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
+  const rows=(data||[]).filter(d=>Number.isFinite(+d.value)&&+d.value>=0).map(d=>({...d,base:d.base??d.total}));
+  const root=d3.select(el);root.selectAll("*").remove();
+  if(!rows.length){root.append("div").attr("class","empty-chart").text("No responses available.");return;}
+  const width=Math.max(360,Math.floor(el.clientWidth||620));
+  const filterKey=opt.filterKey||window.chartFilterKey(sel);
+  SEGVIZ.ribbon(el,rows,width,{...opt,filterKey});
+  el.classList.add("pp-host");
 };
 function enhanceSegments(){
   document.querySelectorAll(".segment-question-section").forEach((sec,si)=>{
