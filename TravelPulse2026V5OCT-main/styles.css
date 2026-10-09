@@ -878,7 +878,7 @@ body.segments-active #filtersBar{display:none!important}
 }
 .segment-pie-empty{display:flex;align-items:center;justify-content:center;min-height:220px;color:#7d728d;font-weight:800}
 .booking-sequence-cards{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px;
+  display:grid;grid-template-columns:minmax(0,1fr);gap:10px;
   width:100%;padding:2px;align-items:stretch
 }
 .booking-sequence-card{
