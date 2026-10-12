@@ -259,28 +259,9 @@ function _mapMainGeometry(f){
   const keep=g.coordinates.filter((p,i)=>areas[i]>=mx*0.04);
   return {type:"Feature",properties:f.properties,geometry:{type:"MultiPolygon",coordinates:keep}};
 }
-/* zoom the map to a list of features (empty list = reset to world view) */
+/* Keep compatibility with map callers while maps remain fixed at world scale. */
 function mapZoomToFeatures(svg,path,features,opts){
-  opts=opts||{};
-  const node=svg&&svg.node&&svg.node(); const api=node&&node.__mapZoom; if(!api) return;
-  const {zoom,W,H}=api;
-  if(!features||!features.length){
-    svg.transition().duration(opts.duration==null?650:opts.duration).call(zoom.transform,d3.zoomIdentity); return;
-  }
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-  features.forEach(f=>{
-    const mf=_mapMainGeometry(f); if(!mf) return;
-    const b=path.bounds(mf); if(!isFinite(b[0][0])) return;
-    x0=Math.min(x0,b[0][0]); y0=Math.min(y0,b[0][1]); x1=Math.max(x1,b[1][0]); y1=Math.max(y1,b[1][1]);
-  });
-  if(!isFinite(x0)) return;
-  const dx=Math.max(x1-x0,1),dy=Math.max(y1-y0,1),pad=opts.pad==null?0.22:opts.pad;
-  let k=(1-pad)/Math.max(dx/W,dy/H);
-  k=Math.max(1,Math.min(opts.maxK||9,k));
-  let tx=W/2-k*(x0+x1)/2, ty=H/2-k*(y0+y1)/2;
-  tx=Math.min(0,Math.max(W-k*W,tx)); ty=Math.min(0,Math.max(H-k*H,ty));   /* stay inside the map */
-  svg.transition().duration(opts.duration==null?750:opts.duration)
-     .call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(k));
+  return;
 }
 /* zoom to the countries of the given markets (used for dropdown / region / click selection) */
 function mapZoomToMarkets(svg,path,countries,markets,opts){
@@ -293,44 +274,8 @@ window.mapFitWorld=mapFitWorld; window.mapZoomToFeatures=mapZoomToFeatures; wind
 
 function attachMapZoomControls(container, svg, zoomLayer){
   const root = typeof container === "string" ? document.querySelector(container) : container;
-  if(!root || !svg || !zoomLayer || !d3?.zoom) return;
-  root.style.position = root.style.position || "relative";
-  root.querySelectorAll(".map-zoom-controls").forEach(el => el.remove());
-
-  const controls = document.createElement("div");
-  controls.className = "map-zoom-controls";
-  controls.innerHTML = `
-    <button type="button" class="map-zoom-btn" data-zoom="in" aria-label="Zoom In" title="Zoom In (+)">+</button>
-    <button type="button" class="map-zoom-btn" data-zoom="out" aria-label="Zoom Out" title="Zoom Out (-)">-</button>
-    <button type="button" class="map-zoom-btn" data-zoom="reset" aria-label="Reset view" title="Reset view">&#8634;</button>
-  `;
-  root.appendChild(controls);
-
-  const vb=(svg.attr("viewBox")||"0 0 800 400").split(/\s+/).map(Number);
-  const W=vb[2],H=vb[3];
-  const zoom = d3.zoom()
-    .scaleExtent([1, 14])
-    .extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])
-    .on("zoom", event => {
-      zoomLayer.attr("transform", event.transform);
-      const k=event.transform.k;               /* keep marker dots the same size while zooming */
-      zoomLayer.selectAll(".map-dot").each(function(){
-        const t=this.__t||(this.__t=this.getAttribute("transform")||"");
-        this.setAttribute("transform",t+" scale("+(1/k)+")");
-      });
-    });
-  svg.node().__mapZoom={zoom,W,H};
-
-  svg.call(zoom).on("dblclick.zoom", null);
-  controls.addEventListener("click", event => {
-    const btn = event.target.closest("[data-zoom]");
-    if(!btn) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if(btn.dataset.zoom==="reset"){ svg.transition().duration(450).call(zoom.transform,d3.zoomIdentity); return; }
-    const factor = btn.dataset.zoom === "in" ? 1.25 : 0.8;
-    svg.transition().duration(220).call(zoom.scaleBy, factor);
-  });
+  if(root) root.querySelectorAll(".map-zoom-controls").forEach(el => el.remove());
+  if(svg) svg.on(".zoom",null).on("dblclick.zoom",null);
 }
 window.attachMapZoomControls = attachMapZoomControls;
 
@@ -2350,7 +2295,7 @@ function renderSegments(){
           .map(([answer,count])=>({answer,count,value:answeredRows.length?count/answeredRows.length:0}))
           .sort((a,b)=>b.count-a.count||a.answer.localeCompare(b.answer));
       }
-      const responses=question.key==="Q5"||question.key==="Q21"?rankedResponses:rankedResponses.slice(0,7);
+      const responses=question.key==="Q3"||question.key==="Q5"||question.key==="Q14"||question.key==="Q21"?rankedResponses:rankedResponses.slice(0,7);
       const othersResponse=rankedResponses.find(item=>item.answer==="Others");
       if(othersResponse&&!responses.includes(othersResponse))responses[responses.length-1]=othersResponse;
       const chartId=`segment-question-chart-${activeSegmentView}-${question.key}-${index}`;
@@ -2392,10 +2337,11 @@ function renderSegments(){
   segmentChartJobs.forEach(chart=>{
     if(chart.type==="Q3"){
       horizontalBars(`#${chart.chartId}`,chart.data,{
-        height:Math.max(260,chart.data.length*28+58),
+        height:Math.max(280,chart.data.length*34+55),
         max:Math.min(1,(chart.data[0]?.value||0.5)*1.25),
-        labelWidth:135,
-        maxLabelChars:22
+        labelWidth:170,
+        maxLabelChars:32,
+        showCountryFlags:true
       });
     }else{
       donut(`#${chart.chartId}`,chart.data,"Trip companion",[]);
@@ -2605,7 +2551,10 @@ function renderJourneyStageCharts(stageKey) {
       }))
       .sort((a,b)=>(tripDurationOrder.get(a.label)??Infinity)-(tripDurationOrder.get(b.label)??Infinity));
     const oneDecimalShare=d=>d3.format(".1%")(d.value);
-    horizontalBars("#planTripDurationPie",tripDurationData,{height:300,max:1,labelWidth:150,preserveOrder:true,gradient:true,valueFormat:oneDecimalShare,axisFormat:d3.format(".0%")});
+    window.semicircleDotGauge("#planTripDurationPie",tripDurationData,{
+      dotCount:200,
+      colors:["#D10B61","#F2C12E","#125BA5","#D7D7D7","#28145E","#079FD0"]
+    });
 
     const planTimingDisplayLabel = label => displayLabelText(label,"timing");
     const bookingLeadTimeData = countField(rows, "Q6")
@@ -3099,6 +3048,62 @@ function journeyStageMatches(row,stage){
   if(stage==="Book") return value.includes("book")||value.includes("arrangement");
   return value.includes("book")||value.includes("arrangement")||value.includes("paid");
 }
+function renderLoyaltyLikertChart(selector,items,total){
+  const root=d3.select(selector);
+  root.selectAll("*").remove();
+  const wrap=root.append("div").attr("class","loyalty-likert");
+  if(!total){
+    wrap.append("div").attr("class","empty-chart").text("No responses available for this selection.");
+    return;
+  }
+  let tooltip=d3.select("#loyaltyChartTooltip");
+  if(tooltip.empty()){
+    tooltip=d3.select("body").append("div").attr("id","loyaltyChartTooltip")
+      .attr("class","loyalty-chart-tooltip").attr("role","tooltip").attr("aria-hidden","true");
+    const head=tooltip.append("div").attr("class","loyalty-chart-tooltip-head");
+    head.append("span").attr("class","loyalty-chart-tooltip-swatch");
+    head.append("span").attr("class","loyalty-chart-tooltip-label");
+    tooltip.append("strong").attr("class","loyalty-chart-tooltip-value");
+    const meter=tooltip.append("div").attr("class","loyalty-chart-tooltip-meter");
+    meter.append("span").attr("class","loyalty-chart-tooltip-meter-fill");
+  }
+  const hideTooltip=()=>tooltip.style("opacity",0).attr("aria-hidden","true");
+  const showTooltip=(event,d)=>{
+    tooltip.style("display","block").style("opacity",1).attr("aria-hidden","false");
+    tooltip.select(".loyalty-chart-tooltip-swatch").style("background",d.color);
+    tooltip.select(".loyalty-chart-tooltip-label").text(d.label);
+    tooltip.select(".loyalty-chart-tooltip-value").text(fmt(d.value));
+    tooltip.select(".loyalty-chart-tooltip-meter-fill")
+      .style("width",`${d.value*100}%`).style("background",d.color);
+    const box=tooltip.node().getBoundingClientRect();
+    const anchor=event.currentTarget.getBoundingClientRect();
+    const x=event.clientX||anchor.left+anchor.width/2;
+    const y=event.clientY||anchor.top+anchor.height/2;
+    const left=Math.max(8,Math.min(x+12,window.innerWidth-box.width-8));
+    const top=y+box.height+12<=window.innerHeight?y+12:Math.max(8,y-box.height-12);
+    tooltip.style("left",`${left}px`).style("top",`${top}px`);
+  };
+  const track=wrap.append("div").attr("class","loyalty-likert-track")
+    .attr("role","img").attr("aria-label","Loyalty importance response distribution");
+  const segments=track.selectAll("div.loyalty-likert-segment").data(items).join("div")
+    .attr("class","loyalty-likert-segment")
+    .style("width",d=>`${d.value*100}%`)
+    .style("background",d=>d.color)
+    .style("color",(_,i)=>i<3?"#fff":"#221345")
+    .attr("aria-hidden","true")
+    .on("mouseenter",showTooltip).on("mousemove",showTooltip).on("mouseleave",hideTooltip);
+  segments.filter(d=>d.value>=.12).text(d=>fmt(d.value));
+
+  const legend=wrap.append("div").attr("class","loyalty-likert-legend");
+  const rows=legend.selectAll("div.loyalty-likert-item").data(items).join("div")
+    .attr("class","loyalty-likert-item").attr("role","listitem").attr("tabindex",0)
+    .attr("aria-describedby","loyaltyChartTooltip")
+    .on("mouseenter",showTooltip).on("mousemove",showTooltip).on("mouseleave",hideTooltip)
+    .on("focus",showTooltip).on("blur",hideTooltip);
+  rows.append("span").attr("class","loyalty-likert-swatch").style("background",d=>d.color);
+  rows.append("span").attr("class","loyalty-likert-label").text(d=>d.label);
+  rows.append("strong").attr("class","loyalty-likert-value").text(d=>fmt(d.value));
+}
 function renderAirline(){
   renderAirlineComprehensive();
 }
@@ -3374,11 +3379,11 @@ function renderAirlineComprehensive(){
     if(!el) return;
     const rows = activeRows();
     const ORDER = [
-      { label: "Extremely important", color: "#221345", def: 0.22 },
-      { label: "Very important", color: "#452080", def: 0.30 },
-      { label: "Moderately important", color: "#6d529b", def: 0.28 },
-      { label: "Slightly important", color: "#a390c5", def: 0.12 },
-      { label: "Not at all important", color: "#d4cce6", def: 0.08 }
+      { label: "Extremely important", color: "#221345" },
+      { label: "Very important", color: "#452080" },
+      { label: "Moderately important", color: "#6d529b" },
+      { label: "Slightly important", color: "#a390c5" },
+      { label: "Not at all important", color: "#d4cce6" }
     ];
 
     const counts = new Map();
@@ -3390,28 +3395,11 @@ function renderAirlineComprehensive(){
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
     const Q16A_ITEMS = ORDER.map(o => ({
       label: o.label,
-      value: total > 5 ? (counts.get(o.label) || 0) / total : o.def,
+      value: total ? (counts.get(o.label) || 0) / total : 0,
       color: o.color
     }));
 
-    const w = Math.max(280, el.clientWidth || 420);
-    const labelW = Math.min(170, Math.max(130, w * 0.40));
-    const trackW = Math.max(70, w - labelW - 65);
-
-    d3.select("#airlineLoyaltyChart").selectAll("*").remove();
-    const container = d3.select("#airlineLoyaltyChart").append("div")
-      .attr("class", "slide2-bar-list");
-
-    Q16A_ITEMS.forEach(d => {
-      const row = container.append("div").attr("class", "slide2-bar-row");
-      row.append("div").attr("class", "slide2-bar-label").style("width", `${labelW}px`).text(d.label);
-      const track = row.append("div").attr("class", "slide2-bar-track").style("width", `${trackW}px`);
-      track.append("div").attr("class", "slide2-bar-fill")
-        .style("width", `${Math.round(d.value * 100 * 2.5)}%`)
-        .style("max-width", "100%")
-        .style("background", d.color);
-      row.append("div").attr("class", "slide2-bar-val").style("color", "#2f2738").text(fmt(d.value));
-    });
+    renderLoyaltyLikertChart("#airlineLoyaltyChart",Q16A_ITEMS,total);
   })();
 
   /* ── 9. SLIDE 2: Q16b MOST VALUED LOYALTY FEATURES (Dynamic) ─────── */
@@ -3764,11 +3752,11 @@ function renderHotelComprehensive() {
     if (!el) return;
     const rows = activeRows();
     const ORDER = [
-      { label: "Extremely important", color: "#221345", def: 0.18 },
-      { label: "Very important", color: "#452080", def: 0.28 },
-      { label: "Moderately important", color: "#6d529b", def: 0.30 },
-      { label: "Slightly important", color: "#a390c5", def: 0.16 },
-      { label: "Not at all important", color: "#d4cce6", def: 0.08 }
+      { label: "Extremely important", color: "#221345" },
+      { label: "Very important", color: "#452080" },
+      { label: "Moderately important", color: "#6d529b" },
+      { label: "Slightly important", color: "#a390c5" },
+      { label: "Not at all important", color: "#d4cce6" }
     ];
 
     const counts = new Map();
@@ -3780,27 +3768,11 @@ function renderHotelComprehensive() {
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
     const Q22A_ITEMS = ORDER.map(o => ({
       label: o.label,
-      value: total > 5 ? (counts.get(o.label) || 0) / total : o.def,
+      value: total ? (counts.get(o.label) || 0) / total : 0,
       color: o.color
     }));
 
-    const w = Math.max(280, el.clientWidth || 420);
-    const labelW = Math.min(170, Math.max(130, w * 0.40));
-    const trackW = Math.max(70, w - labelW - 65);
-
-    d3.select("#hotelLoyaltyChart").selectAll("*").remove();
-    const container = d3.select("#hotelLoyaltyChart").append("div").attr("class", "slide2-bar-list");
-
-    Q22A_ITEMS.forEach(d => {
-      const row = container.append("div").attr("class", "slide2-bar-row");
-      row.append("div").attr("class", "slide2-bar-label").style("width", `${labelW}px`).text(d.label);
-      const track = row.append("div").attr("class", "slide2-bar-track").style("width", `${trackW}px`);
-      track.append("div").attr("class", "slide2-bar-fill")
-        .style("width", `${Math.round(d.value * 100 * 2.5)}%`)
-        .style("max-width", "100%")
-        .style("background", d.color);
-      row.append("div").attr("class", "slide2-bar-val").style("color", "#2f2738").text(fmt(d.value));
-    });
+    renderLoyaltyLikertChart("#hotelLoyaltyChart",Q22A_ITEMS,total);
   })();
 
   /* ── 8. SLIDE 2: Q22b MOST VALUED HOTEL LOYALTY FEATURES (Dynamic) ─ */

@@ -502,6 +502,72 @@ window.horizontalBars=function(sel,data,opt){
   el.__bars={sig,svgNode:svg.node()}; el.classList.add("pp-host");
 };
 
+window.semicircleDotGauge=function(sel,data,opt={}){
+  const el=document.querySelector(sel); if(!el)return;
+  const root=d3.select(el); root.selectAll("*").remove();
+  const rows=(data||[]).filter(d=>Number.isFinite(+d.value)&&+d.value>0)
+    .map((d,i)=>({...d,displayLabel:dispLabel(d),color:d.color||opt.colors?.[i%opt.colors.length]}));
+  if(!rows.length){root.append("div").attr("class","empty-chart").text(EMPTY_MSG);return;}
+
+  const dotTotal=Number(opt.dotCount)||200, shareTotal=d3.sum(rows,d=>+d.value)||1;
+  const totalCount=d3.sum(rows,d=>+d.count||0);
+  const key=window.chartFilterKey(sel), selected=key?chartFilters[key]:null;
+  const allocate=(weights,total)=>{
+    const sum=d3.sum(weights)||1, exact=weights.map(value=>Math.max(0,value)/sum*total);
+    const result=exact.map(Math.floor), remainder=total-d3.sum(result);
+    exact.map((value,index)=>({index,fraction:value-result[index]}))
+      .sort((a,b)=>b.fraction-a.fraction||a.index-b.index)
+      .slice(0,remainder).forEach(item=>result[item.index]++);
+    return result;
+  };
+  const itemCounts=allocate(rows.map(d=>d.value/shareTotal),dotTotal);
+  const dotItems=[];
+  rows.forEach((item,index)=>{for(let count=0;count<itemCounts[index];count++)dotItems.push(item);});
+
+  const radii=[60,72,84,96,108,120,132,144,156];
+  const ringCounts=allocate(radii,dotTotal), positions=[];
+  radii.forEach((radius,ring)=>{
+    const count=ringCounts[ring];
+    for(let index=0;index<count;index++){
+      const angle=count===1?Math.PI/2:Math.PI-index*Math.PI/(count-1);
+      positions.push({x:210+Math.cos(angle)*radius,y:207-Math.sin(angle)*radius,angle,radius});
+    }
+  });
+  positions.sort((a,b)=>b.angle-a.angle||b.radius-a.radius);
+  const dots=positions.map((position,index)=>({...position,item:dotItems[index]}));
+  const wrap=root.append("div").attr("class","plan-duration-dot-gauge");
+  const svg=wrap.append("svg").attr("class","plan-duration-dot-svg")
+    .attr("viewBox","0 0 420 230").attr("role","img")
+    .attr("aria-label","Trip duration distribution");
+  const sameItem=(item,label)=>String(item.filterLabel??item.label)===String(label);
+  const showTip=(event,item)=>window.showTip(event,{
+    label:item.displayLabel,value:+item.value,count:item.count,total:totalCount
+  });
+  svg.append("g").attr("class","plan-duration-dots").selectAll("circle")
+    .data(dots).join("circle").attr("class","plan-duration-dot")
+    .attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",4.8)
+    .attr("fill",d=>d.item.color)
+    .style("opacity",d=>selected!=null&&!sameItem(d.item,selected)?.22:1)
+    .on("mouseenter",(event,d)=>showTip(event,d.item))
+    .on("mousemove",(event,d)=>showTip(event,d.item))
+    .on("mouseleave",()=>window.hideTip())
+    .on("click",(event,d)=>{event.stopPropagation();if(key)window.toggleChartFilter(key,d.item.filterLabel||d.item.label);});
+  const legend=wrap.append("div").attr("class","plan-duration-dot-legend");
+  const items=legend.selectAll("button.plan-duration-dot-item").data(rows).join("button")
+    .attr("type","button").attr("class","plan-duration-dot-item")
+    .classed("is-selected",d=>selected!=null&&sameItem(d,selected))
+    .attr("aria-pressed",d=>String(selected!=null&&sameItem(d,selected)))
+    .attr("aria-label",d=>`${d.displayLabel}, ${fmt(d.value)}`)
+    .on("mouseenter",(event,d)=>showTip(event,d)).on("mousemove",(event,d)=>showTip(event,d))
+    .on("mouseleave",()=>window.hideTip()).on("focus",(event,d)=>showTip(event,d))
+    .on("blur",()=>window.hideTip())
+    .on("click",(event,d)=>{event.stopPropagation();if(key)window.toggleChartFilter(key,d.filterLabel||d.label);});
+  items.append("span").attr("class","plan-duration-dot-swatch").style("background",d=>d.color);
+  items.append("span").attr("class","plan-duration-dot-label").text(d=>d.displayLabel);
+  items.append("strong").attr("class","plan-duration-dot-value").text(d=>fmt(d.value));
+  el.classList.add("plan-duration-dot-host");
+};
+
 window.stackedShareBar=function(sel,data,opt={}){
   const el=document.querySelector(sel); if(!el)return;
   if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
@@ -662,7 +728,7 @@ const _hb=window.horizontalBars;
 window.horizontalBars=function(sel,data,opt){ if(sel==="#inspireDestChart") data=destRows(data); return _hb(sel,data,opt); };
 
 /* ---------- Segments tab: a different visual per question ---------- */
-const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"ribbon",Q8b:"parliament",Q14:"waffle",Q5:"rose",Q8:"ribbon",Q3:"rose"};
+const SEG_TYPES={Q12:"bars",Q7:"bars",Q21:"bars",Q9:"lollipop",Q16:"lollipop",Q22:"lollipop",QS5:"ribbon",Q8b:"parliament",Q14:"bars",Q5:"rose",Q8:"ribbon",Q3:"rose"};
 const SEG_SOFT=SEG_COL.map(c=>d3.color(d3.interpolateRgb(c,"#ffffff")(.34)).formatHex());
 const PARLIAMENT_COLORS=["#FF8C00","#FFD34D","#5287F5","#A8CCF9","#A5A5AD"];
 const LIGHT_PURPLE=SEG_SOFT[0];
@@ -675,7 +741,15 @@ function legendHTML(host,rows,colors=SEG_SOFT){
   r.append("span").attr("class","pp-pc").text(d=>pctTxt(d.value));
 }
 const SEGVIZ={
-  bars(el,rows,w){ window.horizontalBars("#"+el.id,rows.map(d=>({...d,total:d.base})),{color:LIGHT_PURPLE,gradient:true,height:rows.length*32+30,labelWidth:Math.min(150,Math.floor(w*.42))}); },
+  bars(el,rows,w){
+    const questionKey=(el.closest(".segment-question-section")?.getAttribute("aria-label")||"").split(" ")[0];
+    const isAirline=questionKey==="Q14";
+    window.horizontalBars("#"+el.id,rows.map(d=>({...d,total:d.base})),{
+      color:LIGHT_PURPLE,gradient:true,height:rows.length*34+55,
+      labelWidth:isAirline?230:Math.min(150,Math.floor(w*.42)),
+      showAirlineLogos:isAirline,othersLast:isAirline
+    });
+  },
   donut(el,rows){ premiumPie("#"+el.id,rows.map(d=>({...d,total:d.base})),{category:"Segment answers",center:"answers"},[]); },
   cloud(el,rows,w){ wordCloud(el,rows.map(d=>({...d,filterLabel:d.label})),{h:230,max:14,maxFont:26,minFont:11}); },
   ribbon(el,rows,w,opt={}){
