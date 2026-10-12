@@ -1075,16 +1075,19 @@ body.segments-active #filtersBar{display:none!important}
 
 /* ── LOGIN ───────────────────────────────────────────────────── */
 .login-page{
-  min-height:100vh;margin:0;
-  background:radial-gradient(circle at 20% 15%,rgba(255,127,42,.12),transparent 35%),
-             radial-gradient(circle at 85% 80%,rgba(31,127,201,.10),transparent 35%),
-             var(--bg);
-  display:grid;place-items:center;padding:24px
+  min-height:100vh;min-height:100svh;margin:0;position:relative;
+  background-color:#17343d;
+  background-image:linear-gradient(90deg,rgba(7,20,26,.18),rgba(7,20,26,.04) 68%),
+    url("https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=2400&q=88");
+  background-size:cover;background-position:center center;background-repeat:no-repeat;
+  display:flex;align-items:center;justify-content:flex-start;
+  padding:clamp(20px,5.6vw,88px)
 }
-.login-shell{width:100%;max-width:420px}
-.login-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:30px;box-shadow:0 16px 50px rgba(69,32,128,.14)}
+.login-escalent-logo{position:absolute;top:clamp(18px,3vw,36px);right:clamp(18px,3.4vw,52px);z-index:1;display:block;width:154px;height:auto;padding:8px 10px;backdrop-filter:blur(8px)}
+.login-shell{width:100%;max-width:460px;flex:0 1 460px;margin:0;padding:0!important}
+.login-card{background:rgba(255,255,255,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.68);border-radius:9px;padding:30px 36px;box-shadow:0 18px 54px rgba(7,20,26,.24)}
 .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px}
-.login-mark{width:42px;height:42px;border-radius:6px;background:var(--orange);display:grid;place-items:center;color:#fff;font:800 14px Manrope}
+.login-mark{width:48px;height:48px;border-radius:7px;background:#ed1231;display:grid;place-items:center;color:#fff;font:800 14px Manrope}
 .login-brand strong{display:block;font:800 20px Manrope;letter-spacing:.02em;text-transform:uppercase;color:var(--purple)}
 .login-brand span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
 .login-heading{margin-bottom:22px}
@@ -1378,7 +1381,7 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
   .social-kpis{grid-template-columns:repeat(2,1fr)}
   .filter-actions{width:100%;justify-content:space-between;flex-wrap:wrap}
   .filter-title{width:100%;margin-bottom:0}
-  .login-page{padding:14px}.login-card{padding:23px}
+  .login-page{padding:18px;justify-content:center;background-position:58% center}.login-escalent-logo{top:14px;right:14px;width:128px}.login-shell{max-width:460px}.login-card{padding:24px 22px;background:rgba(255,255,255,.91)}
   .chart.long-chart{max-height:480px}.mini-note{white-space:normal}.card-head{align-items:flex-start}
   .tab-panel .card:has(> .chart){height:300px}
   .tab-panel .card:has(> #ttLeisureKpi),
