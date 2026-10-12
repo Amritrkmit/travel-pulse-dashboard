@@ -3340,6 +3340,7 @@ function renderAirlineComprehensive(){
       byCarrier.get(carrier).push(score);
     });
     const cardData=[...byCarrier.entries()]
+      .filter(([carrier])=>!/^others?\b/i.test(carrier.trim()))
       .map(([carrier,scores])=>{
         const p=scores.filter(v=>v>=9).length;
         const pass=scores.filter(v=>v>=7&&v<=8).length;
@@ -3713,6 +3714,7 @@ function renderHotelComprehensive() {
       byBrand.get(brand).push(score);
     });
     const cardData=[...byBrand.entries()]
+      .filter(([brand])=>!/^others?\b/i.test(brand.trim()))
       .map(([brand,scores])=>{
         const p=scores.filter(v=>v>=9).length;
         const pass=scores.filter(v=>v>=7&&v<=8).length;
