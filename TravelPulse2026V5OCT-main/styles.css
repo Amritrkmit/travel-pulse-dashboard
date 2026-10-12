@@ -2240,13 +2240,27 @@ footer{text-align:right;color:#a097ad;font-size:8px;padding:6px 2px 4px}
   flex-shrink: 0;
 }
 .q9b-legend-label {
-  flex: 1;
+  flex: 1 1 190px;
+  min-width: 150px;
   color: #354056;
 }
+.q9b-legend-bar-track {
+  height: 7px;
+  flex: 0 1 150px;
+  min-width: 72px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eeeaf4;
+}
+.q9b-legend-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
 .q9b-legend-val {
+  min-width: 36px;
   font-weight: 800;
   color: #2d1e5e;
-  min-width: 36px;
   text-align: right;
 }
 

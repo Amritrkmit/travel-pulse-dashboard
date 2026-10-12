@@ -2916,6 +2916,9 @@ function renderJourneyStageCharts(stageKey) {
         row.innerHTML=`
           <span class="q9b-legend-swatch" style="background:${item.color};"></span>
           <span class="q9b-legend-label">${item.label}</span>
+          <span class="q9b-legend-bar-track" role="img" aria-label="${item.label}: ${fmt(pct)}">
+            <span class="q9b-legend-bar-fill" style="width:${pct*100}%;background:${item.color};"></span>
+          </span>
           <span class="q9b-legend-val">${fmt(pct)}</span>
         `;
         legendEl.appendChild(row);
