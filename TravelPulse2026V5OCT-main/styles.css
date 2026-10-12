@@ -881,7 +881,7 @@ body.segments-active #filtersBar{display:none!important}
 }
 .booking-sequence-icon{font-size:22px;line-height:1;text-align:center}
 .booking-sequence-copy strong{
-  display:block;color:#230B54;font:900 11px Manrope;text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere
+  display:block;color:#230B54;font:800 11px Manrope;line-height:1.25;overflow-wrap:anywhere
 }
 .booking-sequence-copy span{display:block;color:#756985;font:800 10px "DM Sans";margin-top:3px}
 @media (max-width:720px){.booking-sequence-cards{grid-template-columns:1fr}}

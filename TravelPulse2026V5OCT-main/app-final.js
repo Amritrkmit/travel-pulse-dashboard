@@ -2754,9 +2754,8 @@ function renderJourneyStageCharts(stageKey) {
       const wrap=document.getElementById("bookingSeqChevron"); if(!wrap)return;
       wrap.innerHTML="";
       const rows=activeRows();
-      const ITEMS=["Flights","Hotel / accommodation","Activities & tours","Local transport","Travel insurance","Car rental / other"];
-      const SHORT=["Flights","Accommodation","Activities","Transport","Insurance","Car Rental"];
-      const icons=["✈️","🏨","🎭","🚌","🛡️","🚗"];
+      const ITEMS=(surveyDefinition("Q8a")?.items||[]).map(item=>clean(item.label)).filter(Boolean);
+      const icons=["✈️","🛂","🏨","🚆","🎟️","🛡️"];
       // Calculate average rank for each item (rank 1 = first booked)
       const rankSums=new Array(ITEMS.length).fill(0);
       const rankCounts=new Array(ITEMS.length).fill(0);
@@ -2765,7 +2764,7 @@ function renderJourneyStageCharts(stageKey) {
         if(!Array.isArray(arr))return;
         arr.forEach((v,i)=>{
           const rank=Number(v);
-          if(Number.isFinite(rank)&&rank>0&&i<ITEMS.length){rankSums[i]+=rank;rankCounts[i]++;}
+          if(Number.isFinite(rank)&&rank>0&&rank<=ITEMS.length&&i<ITEMS.length){rankSums[i]+=rank;rankCounts[i]++;}
         });
       });
       const avgRanks=rankSums.map((s,i)=>rankCounts[i]?s/rankCounts[i]:i+1);
@@ -2781,14 +2780,20 @@ function renderJourneyStageCharts(stageKey) {
         const card=document.createElement("article");
         card.className="booking-sequence-card";
         card.style.setProperty("--seq-color",color);
-        card.innerHTML=`
-          <div class="booking-sequence-rank">${rankNum}</div>
-          <div class="booking-sequence-icon">${icons[origIdx]}</div>
-          <div class="booking-sequence-copy">
-            <strong>${SHORT[origIdx]}</strong>
-            <span>Average rank ${avgRanks[origIdx].toFixed(1)}</span>
-          </div>
-        `;
+        const rankBadge=document.createElement("div");
+        rankBadge.className="booking-sequence-rank";
+        rankBadge.textContent=String(rankNum);
+        const icon=document.createElement("div");
+        icon.className="booking-sequence-icon";
+        icon.textContent=icons[origIdx]||"•";
+        const copy=document.createElement("div");
+        copy.className="booking-sequence-copy";
+        const label=document.createElement("strong");
+        label.textContent=ITEMS[origIdx];
+        const average=document.createElement("span");
+        average.textContent=`Average rank ${avgRanks[origIdx].toFixed(1)}`;
+        copy.append(label,average);
+        card.append(rankBadge,icon,copy);
         flow.appendChild(card);
       });
       wrap.appendChild(flow);
