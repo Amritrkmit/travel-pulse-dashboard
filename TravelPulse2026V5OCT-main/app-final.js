@@ -6425,11 +6425,55 @@ function renderActive(){
   });
 }
 
+function ensureLowSampleTooltip(){
+  if(document.getElementById("lowSampleHoverTooltip"))return;
+  const tooltip=document.createElement("div");
+  tooltip.id="lowSampleHoverTooltip";
+  tooltip.className="low-sample-hover-tooltip";
+  tooltip.setAttribute("role","tooltip");
+  tooltip.setAttribute("aria-hidden","true");
+  tooltip.textContent="Sample size is less than 30";
+  document.body.appendChild(tooltip);
+  const hide=()=>{
+    tooltip.classList.remove("is-visible");
+    tooltip.setAttribute("aria-hidden","true");
+  };
+  const show=badge=>{
+    const rect=badge.getBoundingClientRect();
+    tooltip.classList.add("is-visible");
+    tooltip.setAttribute("aria-hidden","false");
+    const box=tooltip.getBoundingClientRect();
+    const left=Math.max(8,Math.min(rect.left+rect.width/2-box.width/2,window.innerWidth-box.width-8));
+    const top=rect.bottom+box.height+10<=window.innerHeight-8?rect.bottom+8:Math.max(8,rect.top-box.height-8);
+    tooltip.style.left=`${left}px`;
+    tooltip.style.top=`${top}px`;
+  };
+  document.addEventListener("pointerover",event=>{
+    const badge=event.target.closest?.(".low-sample-badge");
+    if(badge)show(badge);
+  });
+  document.addEventListener("pointerout",event=>{
+    const badge=event.target.closest?.(".low-sample-badge");
+    if(badge&&!badge.contains(event.relatedTarget))hide();
+  });
+  document.addEventListener("focusin",event=>{
+    const badge=event.target.closest?.(".low-sample-badge");
+    if(badge)show(badge);
+  });
+  document.addEventListener("focusout",event=>{
+    const badge=event.target.closest?.(".low-sample-badge");
+    if(badge&&!badge.contains(event.relatedTarget))hide();
+  });
+  window.addEventListener("scroll",hide,{passive:true});
+  window.addEventListener("resize",hide);
+}
+
 function lowSampleBadgeMarkup(sampleSize){
   const n=Number(sampleSize);
   if(!Number.isFinite(n)||n<0||n>=30)return "";
+  ensureLowSampleTooltip();
   const label=`Sample size is less than 30 (n=${Math.floor(n)}).`;
-  return `<span class="low-sample-badge" role="img" aria-label="${label}" title="${label}"><img src="assets/sample-size-warning.svg" alt=""></span>`;
+  return `<span class="low-sample-badge" role="img" tabindex="0" aria-label="${label}" aria-describedby="lowSampleHoverTooltip"><img src="assets/sample-size-warning.svg" alt=""></span>`;
 }
 
 function updateVisibleSampleWarnings(){

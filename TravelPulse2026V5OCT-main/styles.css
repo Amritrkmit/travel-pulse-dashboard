@@ -665,6 +665,9 @@ h2{font-family:Manrope,sans-serif;font-size:12px;margin:0;color:var(--ink);line-
 }
 .low-sample-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:6px;flex:0 0 22px;vertical-align:middle;cursor:help}
 .low-sample-badge img{display:block;width:100%;height:100%;object-fit:contain}
+.low-sample-badge:focus-visible{outline:2px solid #530095;outline-offset:2px;border-radius:4px}
+.low-sample-hover-tooltip{position:fixed;z-index:10030;display:none;width:max-content;max-width:min(240px,calc(100vw - 24px));box-sizing:border-box;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:7px;background:#221345;color:#fff;box-shadow:0 10px 26px rgba(24,12,48,.24);font:700 11px/1.35 "DM Sans",sans-serif;text-align:left;white-space:normal;pointer-events:none}
+.low-sample-hover-tooltip.is-visible{display:block}
 .low-sample-tooltip{display:flex;align-items:center;gap:5px;margin-top:4px;color:#fff;font-size:9px;font-weight:700}
 .low-sample-tooltip .low-sample-badge{width:18px;height:18px;flex-basis:18px;margin:0}
 .card-head>div{min-width:0}
