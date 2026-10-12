@@ -2524,7 +2524,7 @@ function renderJourneyStageCharts(stageKey) {
     const destData=destinationResponseDistribution(rows);
     topDest=destData[0]||null;
     d3.select("#skpiVal2, #skpiDestCount").text(topDest?topDest.label:"—");
-    const oneDecimalPct = d => `${((+d || 0) * 100).toFixed(1)}%`;
+    const oneDecimalPct = d => `${((+d?.value ?? 0) * 100).toFixed(1)}%`;
     if(rows.length){
       horizontalBars("#inspireDestChart", destData, {
         height: Math.max(280, destData.length * 28 + 58),
@@ -5682,12 +5682,14 @@ function q(key){
     return def.data.map(d=>({label:clean(d.label),value:segmentValue(d,key)})).filter(d=>d.label);
   }
   const rows=activeRows();
-  if(def.type==="multi") return (def.items||[]).map(it=>({label:clean(it.label),value:rows.length?rows.filter(r=>Array.isArray(r[key])&&r[key].some(value=>clean(value)===clean(it.label))).length/rows.length:0})).filter(d=>d.label);
+  if(def.type==="multi") return (def.items||[])
+    .map(it=>({label:clean(it.label),value:rows.length?rows.filter(r=>Array.isArray(r[key])&&r[key].some(value=>clean(value)===clean(it.label))).length/rows.length:0}))
+    .filter(d=>d.label && Number.isFinite(d.value) && d.value > 0);
   if(def.type==="nps"){
     const vals=rows.map(r=>Number(r[key])).filter(Number.isFinite), out=[];
     for(let n=0;n<=10;n++) out.push({label:String(n),value:vals.length?vals.filter(v=>v===n).length/vals.length:0});
     out.push({label:"NPS Score",value:vals.length?vals.reduce((sum,v)=>sum+(v>=9?1:v<=6?-1:0),0)/vals.length*100:0});
-    return out;
+    return out.filter(d=>d.label && Number.isFinite(d.value) && d.value > 0);
   }
   if(def.type==="rank") return surveyQuestionData(def,key);
   if(def.type==="numeric") {
@@ -5709,7 +5711,7 @@ function q(key){
     const bottom=rows.length?rows.filter(r=>["Slightly important","Not at all important"].includes(clean(r[key]))).length/rows.length:0;
     out.push({label:"NET : Top 2 Box",value:top},{label:"NET : Bottom 2 Box",value:bottom});
   }
-  return out;
+  return out.filter(d=>d.label && Number.isFinite(d.value) && d.value > 0);
 }
 function valueFor(key,needle,seg){
   const saved=ignoreDashboardFilters; ignoreDashboardFilters=true;
@@ -5854,7 +5856,7 @@ function surveyQuestionData(def,key){
     return (def.items||[]).map(it=>({
       label:clean(it.label),
       value:rows.filter(r=>Array.isArray(r[key])&&r[key].includes(it.label)).length/rows.length
-    })).filter(d=>d.label);
+    })).filter(d=>d.label && Number.isFinite(d.value) && d.value > 0);
   }
   if(def.type==="text_multi"){
     const counts=new Map();

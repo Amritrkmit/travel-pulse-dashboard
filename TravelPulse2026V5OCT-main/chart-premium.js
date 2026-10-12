@@ -415,7 +415,7 @@ window.horizontalBars=function(sel,data,opt){
   opt=opt||{};
   const el=document.querySelector(sel); if(!el) return;
   if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
-  const ranked=[...(data||[])].filter(d=>Number.isFinite(+d.value)).sort((a,b)=>{
+  const ranked=[...(data||[])].filter(d=>Number.isFinite(+d.value) && +d.value > 0).sort((a,b)=>{
     if(opt.preserveOrder)return (data||[]).indexOf(a)-(data||[]).indexOf(b);
     if(opt.othersLast){
       const aIsOthers=dispLabel(a).trim().toLowerCase()==="others";
@@ -429,7 +429,9 @@ window.horizontalBars=function(sel,data,opt){
   const w=Math.max(280,Math.floor(el.clientWidth||320));
   const key=opt.disableFilter?null:window.chartFilterKey(sel), selVal=key?chartFilters[key]:null, bn=baseN();
   const clickable=!!key||typeof opt.onClick==="function";
-  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,clickable,opt.color,!!opt.showCountryFlags,!!opt.showAirlineLogos,!!opt.othersLast,!!opt.preserveOrder,!!opt.valueFormat,!!opt.axisFormat]);
+  const valueKey = opt.valueFormat ? String(opt.valueFormat).slice(0,120) : "default";
+  const axisKey = opt.axisFormat ? String(opt.axisFormat).slice(0,120) : "default";
+  const sig=JSON.stringify(["h",ranked.map(d=>[dispLabel(d),+(+d.value).toFixed(5)]),selVal,w,opt.max,opt.labelWidth,opt.height,clickable,opt.color,!!opt.showCountryFlags,!!opt.showAirlineLogos,!!opt.othersLast,!!opt.preserveOrder,valueKey,axisKey]);
   if(el.__bars&&el.__bars.sig===sig&&el.contains(el.__bars.svgNode)) return;
   const names=ranked.map(dispLabel), cpx=5.7;
   const maxLen=d3.max(names,s=>s.length)||10;
@@ -503,7 +505,7 @@ window.horizontalBars=function(sel,data,opt){
 window.stackedShareBar=function(sel,data,opt={}){
   const el=document.querySelector(sel); if(!el)return;
   if(el._threePieCleanup){el._threePieCleanup();el._threePieCleanup=null;}
-  const rows=(data||[]).filter(d=>Number.isFinite(+d.value)&&+d.value>=0);
+  const rows=(data||[]).filter(d=>Number.isFinite(+d.value)&&+d.value>0);
   const root=d3.select(el); root.selectAll("*").remove();
   if(!rows.length){root.append("div").attr("class","empty-chart").text("No responses available.");return;}
   const totalShare=d3.sum(rows,d=>+d.value)||1;
