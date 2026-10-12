@@ -780,6 +780,12 @@ body.destination-active .chart-type-picker select{
 #planBudgetReasonsChart::-webkit-scrollbar-thumb{background:#0055A5;border-radius:4px}
 #stageBook > .grid.two:first-child{grid-auto-rows:1fr}
 #stageBook > .grid.two:first-child > .card{height:auto}
+#stageBook > .grid.two:nth-child(2) > .card{height:380px!important}
+#stageBook > .grid.two:nth-child(2) > .card > .chart{min-height:0!important;flex:1 1 auto}
+#stageBook #packageTypeDonut .pp-wrap{display:grid!important;grid-template-columns:minmax(0,1fr);align-items:center;justify-content:center!important;gap:8px;padding:0!important}
+#stageBook #packageTypeDonut .pp-chart{display:flex;width:100%;justify-content:center;justify-self:center}
+#stageBook #packageTypeDonut .pp-legend{display:grid!important;width:100%;max-width:none!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-content:start;gap:3px 8px;flex:initial!important}
+#stageBook #packageTypeDonut .pp-legend .pp-row{grid-column:auto!important;grid-template-columns:10px minmax(0,1fr) 42px}
 .chart.long-chart svg{display:block;max-width:100%;height:auto}
 .sentiment-pulse-chart{overflow:hidden!important}
 .donut-chart{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden!important;padding:0 4px 4px}

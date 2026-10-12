@@ -537,7 +537,7 @@ window.semicircleDotGauge=function(sel,data,opt={}){
   const dots=positions.map((position,index)=>({...position,item:dotItems[index]}));
   const wrap=root.append("div").attr("class","plan-duration-dot-gauge");
   const svg=wrap.append("svg").attr("class","plan-duration-dot-svg")
-    .attr("viewBox","0 0 420 230").attr("role","img")
+    .attr("viewBox","0 30 420 200").attr("role","img")
     .attr("aria-label","Trip duration distribution");
   const sameItem=(item,label)=>String(item.filterLabel??item.label)===String(label);
   const showTip=(event,item)=>window.showTip(event,{
